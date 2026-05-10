@@ -12,21 +12,13 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
     return url;
   }
   
-  // If it's already a Supabase storage URL, return as-is
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (supabaseUrl && url.includes(supabaseUrl)) {
-    return url;
-  }
-  
-  // Normalize URL - add https:// if missing protocol
-  let normalizedUrl = url;
+  // Return the original URL directly instead of passing through the edge function proxy
+  // to prevent image loading failures if the proxy function isn't deployed.
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    normalizedUrl = `https://${url}`;
+    return `https://${url}`;
   }
   
-  // For external URLs, proxy through our edge function
-  const proxyUrl = `${supabaseUrl}/functions/v1/proxy-image?url=${encodeURIComponent(normalizedUrl)}`;
-  return proxyUrl;
+  return url;
 }
 
 /**

@@ -87,10 +87,20 @@ const Header = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button aria-label="Account" className="hidden md:flex items-center gap-2 hover:text-[#FF5722] transition-colors">
-                    <User className="h-6 w-6" />
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt="Profile"
+                        className="h-8 w-8 rounded-full object-cover border border-gray-200"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-[#0f172a] text-white flex items-center justify-center text-xs font-bold">
+                        {(profile?.full_name || user.email || "U").split(" ").map(s => s[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
                     <div className="flex flex-col items-start text-xs font-medium">
                       <span className="text-gray-500 font-normal">Account</span>
-                      <span>{profile?.full_name || 'My Profile'}</span>
+                      <span className="truncate max-w-[100px]">{profile?.full_name || 'My Profile'}</span>
                     </div>
                   </button>
                 </DropdownMenuTrigger>
