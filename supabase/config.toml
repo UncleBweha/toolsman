@@ -1,0 +1,7 @@
+project_id = "zaucferadyqruiqfhgoo"
+
+[functions.send-order-notification]
+verify_jwt = false
+
+[functions.process-product-image]
+verify_jwt = true

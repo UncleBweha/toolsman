@@ -1,0 +1,162 @@
+import { useEffect, useState, useRef } from "react";
+import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { motion, AnimatePresence } from "framer-motion";
+
+const HeroBanner = () => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const { data: slides = [] } = useQuery({
+    queryKey: ["hero-products"],
+    queryFn: async () => {
+      const { data: featured } = await supabase
+        .from("products")
+        .select("id, name, slug, price, original_price, image_url, description")
+        .eq("is_active", true)
+        .eq("is_featured", true)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      if (featured && featured.length >= 3) return featured;
+
+      const { data: newest } = await supabase
+        .from("products")
+        .select("id, name, slug, price, original_price, image_url, description")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      return newest || [];
+    },
+    staleTime: 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!slides.length) return;
+    const t = setInterval(() => setCurrentSlide((p) => (p + 1) % slides.length), 6000);
+    return () => clearInterval(t);
+  }, [slides.length]);
+
+  if (!slides.length) {
+    return (
+      <section className="py-3 md:py-6 bg-white">
+        <div className="container">
+          <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5 md:p-10 min-h-[140px] flex items-center justify-center text-muted-foreground text-sm">
+            Welcome to Toolsman — premium tools and equipment.
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const slide = slides[currentSlide % slides.length];
+  const eyebrows = ["Just Arrived", "Best Sellers", "Top Picks"];
+  const eyebrow = eyebrows[currentSlide % eyebrows.length];
+
+  return (
+    <section className="py-3 md:py-6 bg-white">
+      <div className="container">
+        <div className="relative bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-sm border border-gray-200 p-3 md:p-10 lg:p-12 overflow-hidden">
+          {/* Decorative blobs — GPU-accelerated transforms only */}
+          <motion.div
+            className="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full bg-[#FF5722]/10 blur-3xl"
+            aria-hidden
+            animate={{
+              scale: [1, 1.15, 1],
+              opacity: [0.6, 0.9, 0.6],
+            }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="pointer-events-none absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-blue-500/5 blur-3xl"
+            aria-hidden
+            animate={{
+              scale: [1, 1.1, 1],
+              opacity: [0.4, 0.7, 0.4],
+            }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+
+          <div className="relative grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-8 items-center min-h-[150px] md:min-h-[420px] lg:min-h-[520px] xl:min-h-[640px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={slide.id}
+                className="space-y-1.5 md:space-y-5"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              >
+                <p className="text-[9px] md:text-sm font-bold text-[#FF5722] tracking-wider uppercase">
+                  {eyebrow}
+                </p>
+                <h2 className="text-sm md:text-4xl lg:text-5xl xl:text-6xl font-extrabold text-gray-900 leading-tight line-clamp-2 md:line-clamp-3">
+                  {slide.name}
+                </h2>
+                <p className="text-xs md:text-lg font-bold text-gray-900">
+                  KSh {Number(slide.price).toLocaleString("en-US")}
+                  {slide.original_price && (
+                    <span className="ml-1.5 text-[10px] md:text-base text-muted-foreground line-through font-normal">
+                      KSh {Number(slide.original_price).toLocaleString("en-US")}
+                    </span>
+                  )}
+                </p>
+                <Link
+                  to={`/product/${slide.slug}`}
+                  className="inline-flex items-center justify-center bg-[#FF5722] hover:bg-[#e64a19] text-white font-semibold rounded-lg text-[11px] md:text-base px-3 md:px-8 py-1.5 md:py-3.5 transition-all hover:scale-105 hover:shadow-lg bg-gradient-to-r from-[#FF5722] to-[#FF7043]"
+                >
+                  Shop Now <ArrowRight className="h-3 w-3 md:h-5 md:w-5 ml-1 md:ml-2" />
+                </Link>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="relative">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={slide.id}
+                  className="aspect-square md:h-[380px] lg:h-[460px] xl:h-[580px] md:aspect-auto rounded-xl bg-white border border-gray-100 flex items-center justify-center overflow-hidden p-2 md:p-6"
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  whileHover={{ scale: 1.02 }}
+                >
+                  <img
+                    src={getProxiedImageUrl(slide.image_url || "/placeholder.svg")}
+                    alt={slide.name}
+                    loading="eager"
+                    decoding="async"
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      const t = e.target as HTMLImageElement;
+                      t.onerror = null;
+                      t.src = "/placeholder.svg";
+                    }}
+                  />
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {slides.length > 1 && (
+            <div className="flex gap-1.5 justify-center mt-3 md:mt-5">
+              {slides.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`h-1.5 rounded-full transition-all ${
+                    index === currentSlide ? "w-6 bg-[#FF5722]" : "w-1.5 bg-gray-300"
+                  }`}
+                  aria-label={`Slide ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default HeroBanner;
