@@ -35,10 +35,10 @@ export interface Product {
   category_id: string | null;
   image_url: string | null;
   images: string[];
-  brand: string | null;
-  tags: string[];
-  key_features: string[];
-  status: 'active' | 'draft' | 'out_of_stock';
+  brand?: string | null;
+  tags?: string[];
+  key_features?: string[];
+  status?: 'active' | 'draft' | 'out_of_stock';
   is_featured: boolean;
   is_active: boolean;
   created_at: string;
