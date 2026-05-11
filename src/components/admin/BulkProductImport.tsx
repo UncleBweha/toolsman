@@ -350,10 +350,7 @@ const BulkProductImport = () => {
         brand: "DeWalt",
         tags: "drill, cordless, power tool",
         key_features: "20V Battery, Variable Speed, LED Light",
-        status: "active",
         image_url: "https://example.com/image.jpg",
-        is_featured: "false",
-        is_active: "true",
       },
     ];
 
@@ -525,11 +522,11 @@ const BulkProductImport = () => {
         <h3 className="font-semibold mb-3">Import Guidelines</h3>
         <ul className="text-sm text-muted-foreground space-y-2">
           <li>• <strong>Required fields:</strong> name, price (in Kshs)</li>
-          <li>• <strong>Optional fields:</strong> description, original_price, sku, stock_quantity, category, brand, tags, key_features, image_url, is_featured, is_active, status</li>
+          <li>• <strong>Optional fields:</strong> description, original_price, sku, stock_quantity, category, brand, tags, key_features, image_url</li>
           <li>• <strong>Price format:</strong> Enter prices in Kshs (e.g., 9999 for Kshs 9,999)</li>
           <li>• <strong>Category:</strong> Must match an existing category name exactly</li>
-          <li>• <strong>Boolean fields:</strong> Use "true" or "false"</li>
-          <li>• <strong>Status:</strong> Use "active", "draft", or "out_of_stock"</li>
+          <li>• <strong>Tags:</strong> Comma-separated (e.g., "drill, cordless, power tool")</li>
+          <li>• <strong>Key features:</strong> Comma-separated (e.g., "20V Battery, Variable Speed")</li>
         </ul>
       </div>
     </div>

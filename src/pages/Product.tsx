@@ -268,7 +268,7 @@ const Product = () => {
           {/* Images Column */}
           <div className="lg:col-span-5 flex flex-col-reverse md:flex-row gap-3 md:gap-4">
             {images.length > 1 && (
-              <div className="flex md:flex-col gap-2 md:gap-3 md:w-20 flex-shrink-0 overflow-x-auto md:overflow-visible">
+              <div className="flex md:flex-col gap-2 md:gap-3 md:w-20 flex-shrink-0 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden md:max-h-[420px] scrollbar-hide pb-1 md:pb-0 md:pr-1">
                 {images.map((img, index) => (
                   <button
                     key={index}
@@ -604,21 +604,32 @@ const Product = () => {
             </TabsContent>
             <TabsContent value="features" className="p-6 md:p-8 m-0">
               {(() => {
-                const html = product.description || "";
-                let features: string[] = [];
-                const liMatches = Array.from(html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
-                  .map((m) => m[1].replace(/<[^>]+>/g, "").trim())
-                  .filter(Boolean);
-                if (liMatches.length) features = liMatches.slice(0, 6);
-                else {
-                  const plain = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-                  features = plain
-                    .split(/(?<=[.!?])\s+/)
-                    .map((s) => s.trim())
-                    .filter((s) => s.length > 12 && s.length < 220)
-                    .slice(0, 5);
+                // Priority 1: Use key_features from DB if available
+                const dbFeatures = (product.key_features && Array.isArray(product.key_features) && product.key_features.length > 0)
+                  ? product.key_features.filter(Boolean)
+                  : [];
+
+                let features: string[] = dbFeatures;
+
+                // Priority 2: Extract from description HTML if no DB features
+                if (features.length === 0) {
+                  const html = product.description || "";
+                  const liMatches = Array.from(html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
+                    .map((m) => m[1].replace(/<[^>]+>/g, "").trim())
+                    .filter(Boolean);
+                  if (liMatches.length) features = liMatches.slice(0, 6);
+                  else {
+                    const plain = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+                    features = plain
+                      .split(/(?<=[.!?])\s+/)
+                      .map((s) => s.trim())
+                      .filter((s) => s.length > 12 && s.length < 220)
+                      .slice(0, 5);
+                  }
                 }
+
                 const meta = [
+                  product.brand && `Brand: ${product.brand}`,
                   product.category?.name && `Category: ${product.category.name}`,
                   product.sku && `SKU: ${product.sku}`,
                   product.stock_quantity !== null && product.stock_quantity > 0 && "In stock and ready to ship",
