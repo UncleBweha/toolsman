@@ -138,13 +138,3 @@
   pointer-events: none;
 }
 
-/* Blur images slightly while loading to reduce automated scraping */
-img[loading="lazy"] {
-  filter: blur(5px);
-  transition: filter 0.3s ease-out;
-}
-
-img[loading="lazy"].loaded,
-img.loaded {
-  filter: blur(0);
-}

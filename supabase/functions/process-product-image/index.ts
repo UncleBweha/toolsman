@@ -251,12 +251,15 @@ serve(async (req) => {
       // Audit log table may not exist — ignore silently
     }
 
+    const wasWatermarked = finalBuffer !== imageBuffer;
+
     return new Response(
       JSON.stringify({
         success: true,
         url: urlData.publicUrl,
         path: storagePath,
         size: finalBuffer.length,
+        watermarked: wasWatermarked,
       }),
       {
         status: 200,

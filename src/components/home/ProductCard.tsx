@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Heart, ShoppingCart, Loader2 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { useCartContext } from "@/contexts/CartContext";
@@ -9,6 +9,7 @@ import { getProxiedImageUrl } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface ProductCardProps {
   id?: number;
@@ -26,9 +27,9 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
   const { isInWishlist, toggle } = useWishlist();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   // Prefetch product page data on hover for instant navigation
   const handlePrefetch = useCallback(() => {
@@ -38,9 +39,9 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
       queryFn: async () => {
         const { data, error } = await supabase
           .from("products")
-          .select("*, categories(name, slug)")
+          .select("*, category:categories(name, slug)")
           .eq("slug", slug)
-          .single();
+          .maybeSingle();
         if (error) throw error;
         return data;
       },
@@ -89,12 +90,12 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
 
   return (
     <div
-      className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group flex flex-col h-full relative"
+      className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-sm border border-gray-100 hover:shadow-lg transition-shadow duration-200 group flex flex-col h-full relative"
       onMouseEnter={handlePrefetch}
     >
       <Link to={productLink} className="block">
-        {/* Image - fixed aspect ratio, no blur, crisp rendering */}
-        <div className="relative w-full aspect-square bg-gray-50 rounded-xl overflow-hidden mb-2.5">
+        {/* Image container — NO CSS transform on img to prevent rasterization blur */}
+        <div className="relative w-full aspect-square bg-white rounded-xl overflow-hidden mb-2.5">
           {discountPercent > 0 && (
             <span className="absolute top-1.5 left-1.5 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
               -{discountPercent}%
@@ -111,17 +112,19 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
           >
             <Heart className={cn("h-3.5 w-3.5", wished && "fill-current")} />
           </button>
+          {/*
+            CRITICAL: No transform (scale/translate) on <img> — CSS transforms
+            force GPU compositing which rasterizes at base resolution and scales
+            the bitmap, causing blur on both mobile and desktop.
+            Hover effect is on the card shadow instead.
+          */}
           <img
             src={proxiedImage}
             alt={name}
+            width={400}
+            height={400}
             loading="lazy"
-            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-            style={{
-              imageRendering: "auto",
-              willChange: "transform",
-              backfaceVisibility: "hidden",
-              WebkitBackfaceVisibility: "hidden",
-            }}
+            className="w-full h-full object-contain"
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.onerror = null;

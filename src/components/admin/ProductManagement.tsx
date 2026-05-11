@@ -172,11 +172,16 @@ const ProductManagement = () => {
         const { data, error } = await supabase.functions.invoke("process-product-image", {
           body: formDataUpload,
         });
-        if (!error && data?.url) {
+        if (error) {
+          console.warn("Edge function error (falling back to direct upload):", error.message || error);
+        } else if (data?.url) {
           uploadedUrl = data.url;
+          if (data.watermarked === false) {
+            toast.info("Image uploaded without watermark — ensure watermark.png is in system-assets bucket");
+          }
         }
-      } catch {
-        // Edge function unavailable – fall through to direct upload
+      } catch (edgeFnErr) {
+        console.warn("Edge function unavailable (falling back to direct upload):", edgeFnErr);
       }
 
       // Fallback: upload directly to Supabase Storage
@@ -905,13 +910,26 @@ const ProductManagement = () => {
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-3">
-                  {product.image_url && (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-10 h-10 object-cover rounded"
-                    />
-                  )}
+                  <div className="flex items-center -space-x-2">
+                    {product.image_url && (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-10 h-10 object-contain rounded border border-gray-200 bg-white relative z-10"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    )}
+                    {product.images && product.images.length > 0 && (
+                      <div className="w-10 h-10 rounded border border-gray-200 bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-500 relative z-0">
+                        +{product.images.length}
+                      </div>
+                    )}
+                    {!product.image_url && (!product.images || product.images.length === 0) && (
+                      <div className="w-10 h-10 rounded border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">
+                        —
+                      </div>
+                    )}
+                  </div>
                   <div>
                     <div className="font-medium">{product.name}</div>
                     <div className="text-xs text-muted-foreground">{product.sku}</div>

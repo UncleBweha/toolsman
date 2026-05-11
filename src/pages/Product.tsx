@@ -48,6 +48,7 @@ const Product = () => {
     () => localStorage.getItem(DELIVERY_LOCATION_KEY) || "Nairobi"
   );
   const [locationOpen, setLocationOpen] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ["product", slug],
@@ -122,10 +123,16 @@ const Product = () => {
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
 
-  const rawImages = product?.images?.length
-    ? product.images
-    : [product?.image_url || "/placeholder.svg"];
-  const images = rawImages.map(getProxiedImageUrl);
+  // Combine primary image + additional images, deduplicate
+  const allRawImages = [
+    product?.image_url,
+    ...(product?.images || []),
+  ].filter((url): url is string => !!url);
+  // Deduplicate (primary might also be in images array)
+  const uniqueImages = [...new Set(allRawImages)];
+  const images = uniqueImages.length > 0
+    ? uniqueImages.map(getProxiedImageUrl)
+    : ["/placeholder.svg"];
 
   const nextImage = () => setSelectedImage((i) => (i + 1) % images.length);
   const prevImage = () => setSelectedImage((i) => (i - 1 + images.length) % images.length);
@@ -385,10 +392,21 @@ const Product = () => {
             </div>
 
             {cleanDescription && (
-              <div
-                className="prose prose-sm max-w-none text-sm text-gray-600 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: cleanDescription }}
-              />
+              <div className="relative">
+                <div
+                  className={`prose prose-sm max-w-none text-sm text-gray-600 leading-relaxed overflow-hidden transition-all duration-300 ${
+                    descExpanded ? "" : "line-clamp-3"
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: cleanDescription }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDescExpanded(!descExpanded)}
+                  className="text-[#FF5722] hover:text-[#e64a19] text-sm font-semibold mt-1 transition-colors"
+                >
+                  {descExpanded ? "Show less" : "See more"}
+                </button>
+              </div>
             )}
 
             <div className="flex items-center gap-6 py-1 flex-wrap">
