@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, Loader2 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { useCartContext } from "@/contexts/CartContext";
