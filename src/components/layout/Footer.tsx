@@ -14,12 +14,12 @@ const quickLinks = [
 ];
 
 const categories = [
-  { name: "Power Tools", slug: "power-tools" },
-  { name: "Hand Tools", slug: "hand-tools" },
-  { name: "Safety Equipment", slug: "safety-equipment" },
-  { name: "Measuring Tools", slug: "measuring-tools" },
-  { name: "Garden Tools", slug: "garden-tools" },
-  { name: "Electrical", slug: "electrical" },
+  { name: "Power Tools", slug: "power-hand-tools" },
+  { name: "Hand Tools", slug: "power-hand-tools" },
+  { name: "Safety Equipment", slug: "safety-ware-ppe" },
+  { name: "Measuring Tools", slug: "tools-machinery" },
+  { name: "Garden Tools", slug: "farm-equipment" },
+  { name: "Electrical", slug: "electrical-supplies" },
 ];
 
 const Section = ({

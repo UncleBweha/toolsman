@@ -52,6 +52,7 @@ interface ProductFormData {
   sku: string;
   stock_quantity: number;
   category_id: string;
+  subcategory_id: string;
   image_url: string;
   images: string[];
   brand: string;
@@ -71,6 +72,7 @@ const emptyFormData: ProductFormData = {
   sku: "",
   stock_quantity: 0,
   category_id: "",
+  subcategory_id: "",
   image_url: "",
   images: [],
   brand: "",
@@ -120,7 +122,7 @@ const ProductManagement = () => {
     if (error) {
       toast.error("Failed to load products");
     } else {
-      setProducts(data || []);
+      setProducts((data as unknown as Product[]) || []);
     }
     setIsLoading(false);
   };
@@ -144,46 +146,65 @@ const ProductManagement = () => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isPrimary: boolean) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = "";
 
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Please upload JPG, PNG, WEBP, or GIF.");
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       toast.error("File size must be less than 10MB");
       return;
     }
 
-    if (isPrimary) {
-      setIsUploading(true);
-    } else {
-      setIsUploadingAdditional(true);
-    }
+    if (isPrimary) setIsUploading(true);
+    else setIsUploadingAdditional(true);
 
     try {
-      const formDataUpload = new FormData();
-      formDataUpload.append("image", file);
+      let uploadedUrl: string | null = null;
 
-      const { data, error } = await supabase.functions.invoke("process-product-image", {
-        body: formDataUpload,
-      });
+      // Try edge function first (adds watermark)
+      try {
+        const formDataUpload = new FormData();
+        formDataUpload.append("image", file);
+        const { data, error } = await supabase.functions.invoke("process-product-image", {
+          body: formDataUpload,
+        });
+        if (!error && data?.url) {
+          uploadedUrl = data.url;
+        }
+      } catch {
+        // Edge function unavailable – fall through to direct upload
+      }
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      // Fallback: upload directly to Supabase Storage
+      if (!uploadedUrl) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: storageError } = await supabase.storage
+          .from("product-images")
+          .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+        if (storageError) throw storageError;
+        const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+        uploadedUrl = urlData.publicUrl;
+      }
 
-      if (data?.url) {
+      if (uploadedUrl) {
         if (isPrimary) {
-          setFormData((prev) => ({ ...prev, image_url: data.url }));
+          setFormData((prev) => ({ ...prev, image_url: uploadedUrl! }));
         } else {
-          setFormData((prev) => ({ ...prev, images: [...prev.images, data.url] }));
+          setFormData((prev) => ({ ...prev, images: [...prev.images, uploadedUrl!] }));
         }
         toast.success("Image uploaded successfully");
       }
     } catch (err) {
       console.error("Upload error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to upload image");
+      toast.error(err instanceof Error ? err.message : "Failed to upload image. Please try again.");
     } finally {
-      if (isPrimary) {
-        setIsUploading(false);
-      } else {
-        setIsUploadingAdditional(false);
-      }
+      if (isPrimary) setIsUploading(false);
+      else setIsUploadingAdditional(false);
     }
   };
 
@@ -199,20 +220,67 @@ const ProductManagement = () => {
     e.preventDefault();
     setIsSaving(true);
 
+    // Use subcategory if selected, otherwise parent category
+    const finalCategoryId = formData.subcategory_id || formData.category_id || null;
+
+    if (!finalCategoryId) {
+      toast.error("Please select a category (and subcategory if applicable)");
+      setIsSaving(false);
+      return;
+    }
+
+    // Coerce numeric fields — inputs return strings, DB expects numbers
+    const price = parseFloat(String(formData.price)) || 0;
+    const originalPrice = formData.original_price
+      ? parseFloat(String(formData.original_price))
+      : null;
+    const stockQty = parseInt(String(formData.stock_quantity), 10) || 0;
+
+    // Handle slug uniqueness — on create, suffix with timestamp if collision
+    let slug = formData.slug.trim();
+    if (!editingProduct) {
+      const { data: slugCheck } = await supabase
+        .from("products")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (slugCheck) {
+        slug = `${slug}-${Date.now().toString(36)}`;
+        // Update the form so user sees the resolved slug
+        setFormData(prev => ({ ...prev, slug }));
+      }
+    } else {
+      // On update, check for collision with OTHER products
+      const { data: slugCheck } = await supabase
+        .from("products")
+        .select("id")
+        .eq("slug", slug)
+        .neq("id", editingProduct.id)
+        .maybeSingle();
+      if (slugCheck) {
+        toast.error(`Slug "${slug}" is already used by another product. Please change it.`);
+        setIsSaving(false);
+        return;
+      }
+    }
+
     const productData = {
-      name: formData.name,
-      slug: formData.slug,
+      name: formData.name.trim(),
+      slug,
       description: formData.description || null,
-      price: formData.price,
-      original_price: formData.original_price,
-      sku: formData.sku || null,
-      stock_quantity: formData.stock_quantity,
-      category_id: formData.category_id || null,
+      price,
+      original_price: originalPrice,
+      // Empty SKU must be null — non-null empty string violates UNIQUE constraint
+      sku: formData.sku?.trim() || null,
+      stock_quantity: stockQty,
+      category_id: finalCategoryId,
       image_url: formData.image_url || null,
       images: formData.images.filter(Boolean),
-      brand: formData.brand || null,
+      brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
-      key_features: formData.key_features ? formData.key_features.split("\n").map(f => f.trim()).filter(Boolean) : [],
+      key_features: formData.key_features
+        ? formData.key_features.split("\n").map(f => f.trim()).filter(Boolean)
+        : [],
       status: formData.status || "active",
       is_featured: formData.is_featured,
       is_active: formData.is_active,
@@ -231,7 +299,12 @@ const ProductManagement = () => {
     }
 
     if (error) {
-      toast.error(editingProduct ? "Failed to update product" : "Failed to create product");
+      console.error("Product save error:", error);
+      toast.error(
+        editingProduct
+          ? `Failed to update product: ${error.message}`
+          : `Failed to create product: ${error.message}`
+      );
     } else {
       toast.success(editingProduct ? "Product updated" : "Product created");
       setIsDialogOpen(false);
@@ -244,6 +317,9 @@ const ProductManagement = () => {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    // Determine if the product's category is a subcategory
+    const cat = categories.find(c => c.id === product.category_id);
+    const isSubcat = cat?.parent_id != null;
     setFormData({
       name: product.name,
       slug: product.slug,
@@ -252,7 +328,8 @@ const ProductManagement = () => {
       original_price: product.original_price,
       sku: product.sku || "",
       stock_quantity: product.stock_quantity,
-      category_id: product.category_id || "",
+      category_id: isSubcat ? (cat?.parent_id || "") : (product.category_id || ""),
+      subcategory_id: isSubcat ? (product.category_id || "") : "",
       image_url: product.image_url || "",
       images: product.images || [],
       brand: product.brand || "",
@@ -502,7 +579,13 @@ const ProductManagement = () => {
             }
           }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button
+                onClick={() => {
+                  // Explicitly reset to creation mode before opening
+                  setEditingProduct(null);
+                  setFormData(emptyFormData);
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Product
               </Button>
@@ -582,16 +665,16 @@ const ProductManagement = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">Category *</Label>
                   <Select
                     value={formData.category_id}
-                    onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                    onValueChange={(value) => setFormData({ ...formData, category_id: value, subcategory_id: "" })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
+                      <SelectValue placeholder="Select parent category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((cat) => (
+                      {parentCategories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}
                         </SelectItem>
@@ -600,6 +683,29 @@ const ProductManagement = () => {
                   </Select>
                 </div>
               </div>
+
+              {/* Subcategory - shown when parent has subcategories */}
+              {formData.category_id && getSubcategories(formData.category_id).length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="subcategory">Subcategory *</Label>
+                  <Select
+                    value={formData.subcategory_id}
+                    onValueChange={(value) => setFormData({ ...formData, subcategory_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getSubcategories(formData.category_id).map((sub) => (
+                        <SelectItem key={sub.id} value={sub.id}>
+                          {sub.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Required: select a subcategory for this parent category.</p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="image_url">Primary Image URL or Upload</Label>

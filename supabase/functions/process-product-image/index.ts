@@ -238,14 +238,18 @@ serve(async (req) => {
       .from("product-images")
       .getPublicUrl(storagePath);
 
-    // Log the action
-    await serviceClient.from("admin_audit_log").insert({
-      admin_id: user.id,
-      action: "upload_product_image",
-      entity_type: "product_image",
-      entity_id: storagePath,
-      details: { fileName, mimeType: finalMimeType, size: finalBuffer.length, watermarked: finalBuffer !== imageBuffer },
-    });
+    // Log the action (best-effort - don't fail upload if this table doesn't exist)
+    try {
+      await serviceClient.from("admin_audit_log").insert({
+        admin_id: user.id,
+        action: "upload_product_image",
+        entity_type: "product_image",
+        entity_id: storagePath,
+        details: { fileName, mimeType: finalMimeType, size: finalBuffer.length, watermarked: finalBuffer !== imageBuffer },
+      });
+    } catch (_logErr) {
+      // Audit log table may not exist — ignore silently
+    }
 
     return new Response(
       JSON.stringify({

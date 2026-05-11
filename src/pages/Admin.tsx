@@ -5,8 +5,10 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import ProductManagement from "@/components/admin/ProductManagement";
 import OrderManagement from "@/components/admin/OrderManagement";
+import CustomerManagement from "@/components/admin/CustomerManagement";
 import CategoryManagement from "@/components/admin/CategoryManagement";
 import BulkProductImport from "@/components/admin/BulkProductImport";
+import SalesReports from "@/components/admin/SalesReports";
 import WatermarkSettings from "@/components/admin/WatermarkSettings";
 import { Loader2 } from "lucide-react";
 
@@ -41,8 +43,10 @@ const Admin = () => {
         <Route index element={<AdminDashboard />} />
         <Route path="products" element={<ProductManagement />} />
         <Route path="orders" element={<OrderManagement />} />
+        <Route path="customers" element={<CustomerManagement />} />
         <Route path="categories" element={<CategoryManagement />} />
         <Route path="import" element={<BulkProductImport />} />
+        <Route path="reports" element={<SalesReports />} />
         <Route path="settings" element={<WatermarkSettings />} />
       </Routes>
     </AdminLayout>

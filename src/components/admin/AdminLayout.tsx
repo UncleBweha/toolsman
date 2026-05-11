@@ -4,29 +4,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { 
   LayoutDashboard, 
   ShoppingCart, 
-  Undo2,
-  TicketPercent,
   Users,
   Package, 
-  FolderTree, 
-  Tags,
-  Warehouse,
-  ListTree,
-  Image as ImageIcon,
-  Megaphone,
-  Star,
-  FileText,
-  BarChart3,
-  PieChart,
-  UserCog,
-  ShieldCheck,
+  FolderTree,
   Settings,
-  Activity,
   Menu,
   Search,
   Bell,
   ExternalLink,
-  ChevronLeft
+  ChevronLeft,
+  Upload,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -49,8 +37,6 @@ const sidebarSections = [
     title: "SALES",
     items: [
       { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
-      { href: "/admin/returns", label: "Returns", icon: Undo2 },
-      { href: "/admin/coupons", label: "Coupons", icon: TicketPercent },
       { href: "/admin/customers", label: "Customers", icon: Users },
     ]
   },
@@ -59,34 +45,19 @@ const sidebarSections = [
     items: [
       { href: "/admin/products", label: "Products", icon: Package },
       { href: "/admin/categories", label: "Categories", icon: FolderTree },
-      { href: "/admin/brands", label: "Brands", icon: Tags },
-      { href: "/admin/inventory", label: "Inventory", icon: Warehouse },
-      { href: "/admin/attributes", label: "Attributes", icon: ListTree },
-    ]
-  },
-  {
-    title: "MARKETING",
-    items: [
-      { href: "/admin/banners", label: "Banners", icon: ImageIcon },
-      { href: "/admin/promotions", label: "Promotions", icon: Megaphone },
-      { href: "/admin/reviews", label: "Reviews", icon: Star },
+      { href: "/admin/import", label: "Bulk Import", icon: Upload },
     ]
   },
   {
     title: "REPORTS",
     items: [
-      { href: "/admin/sales-reports", label: "Sales Reports", icon: FileText },
-      { href: "/admin/product-reports", label: "Product Reports", icon: BarChart3 },
-      { href: "/admin/customer-reports", label: "Customer Reports", icon: PieChart },
+      { href: "/admin/reports", label: "Sales & Analytics", icon: BarChart3 },
     ]
   },
   {
     title: "SYSTEM",
     items: [
-      { href: "/admin/users", label: "Users", icon: UserCog },
-      { href: "/admin/roles", label: "Roles & Permissions", icon: ShieldCheck },
       { href: "/admin/settings", label: "Settings", icon: Settings },
-      { href: "/admin/activity", label: "Activity Logs", icon: Activity },
     ]
   }
 ];
@@ -186,9 +157,6 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           <div className="flex items-center gap-6">
             <button className="relative text-gray-500 hover:text-gray-700">
               <Bell className="h-5 w-5" />
-              <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 flex items-center justify-center bg-[#FF6B00] text-[10px] text-white border-white border">
-                5
-              </Badge>
             </button>
             
             <Link to="/">
@@ -219,7 +187,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
             {children}
             
             <footer className="mt-12 pt-6 border-t flex items-center justify-between text-xs text-gray-500">
-              <div>© 2024 ToolsMan Admin. All rights reserved.</div>
+              <div>© 2026 ToolsMan Admin. All rights reserved.</div>
               <div>Version 1.0.0</div>
             </footer>
           </div>

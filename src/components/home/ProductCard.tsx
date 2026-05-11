@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Heart, ShoppingCart, Loader2 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { useCartContext } from "@/contexts/CartContext";
@@ -21,21 +21,11 @@ interface ProductCardProps {
   slug?: string;
 }
 
-// Extract a short brand-style label from the product name (first word)
-const extractBrand = (name: string) => {
-  if (!name) return "";
-  const first = name.trim().split(/\s+/)[0] || "";
-  // Only show if reasonably short and looks like a brand token
-  if (first.length < 2 || first.length > 14) return "";
-  return first.toUpperCase();
-};
-
 const ProductCard = ({ id, productId, name, price, originalPrice, image, discount, slug }: ProductCardProps) => {
   const { addToCart } = useCartContext();
   const { isInWishlist, toggle } = useWishlist();
   const { user } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const queryClient = useQueryClient();
 
@@ -71,7 +61,6 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
   const discountPercent = calculateDiscount();
   const productLink = slug ? `/product/${slug}` : `/product/${id}`;
   const proxiedImage = getProxiedImageUrl(image);
-  const brand = extractBrand(name);
   const wished = productId ? isInWishlist(productId) : false;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
@@ -98,9 +87,13 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
   };
 
   return (
-    <div className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group flex flex-col h-full relative" onMouseEnter={handlePrefetch}>
+    <div
+      className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group flex flex-col h-full relative"
+      onMouseEnter={handlePrefetch}
+    >
       <Link to={productLink} className="block">
-        <div className="relative aspect-square bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden mb-2.5">
+        {/* Image - fixed aspect ratio, no blur, crisp rendering */}
+        <div className="relative w-full aspect-square bg-gray-50 rounded-xl overflow-hidden mb-2.5">
           {discountPercent > 0 && (
             <span className="absolute top-1.5 left-1.5 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
               -{discountPercent}%
@@ -121,8 +114,13 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
             src={proxiedImage}
             alt={name}
             loading="lazy"
-            decoding="async"
-            className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+            style={{
+              imageRendering: "auto",
+              willChange: "transform",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+            }}
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.onerror = null;
@@ -133,12 +131,6 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
       </Link>
 
       <div className="flex flex-col flex-grow gap-1">
-        {brand && (
-          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">
-            {brand}
-          </span>
-        )}
-
         <Link to={productLink} className="block">
           <h3 className="text-xs sm:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug min-h-[2.5em] hover:text-[#FF5722] transition-colors">
             {name}

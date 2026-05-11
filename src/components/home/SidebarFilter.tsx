@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,38 +19,7 @@ interface Props {
 const fmt = (n: number) => `KSh ${n.toLocaleString("en-US")}`;
 
 const SidebarFilter = ({ categoryId, maxPrice = 100000, filters, onChange, subcategories = [] }: Props) => {
-  const [brands, setBrands] = useState<{ name: string; count: number }[]>([]);
-
-  useEffect(() => {
-    if (!categoryId) { setBrands([]); return; }
-    (async () => {
-      // Derive brand from product name's first word as a fallback (no brand column).
-      const { data } = await supabase
-        .from("products")
-        .select("name")
-        .eq("category_id", categoryId)
-        .eq("is_active", true);
-      if (!data) return;
-      const counts = new Map<string, number>();
-      for (const p of data) {
-        const first = (p.name || "").trim().split(/\s+/)[0];
-        if (!first) continue;
-        counts.set(first, (counts.get(first) || 0) + 1);
-      }
-      const arr = Array.from(counts.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 8);
-      setBrands(arr);
-    })();
-  }, [categoryId]);
-
-  const toggleBrand = (b: string) => {
-    const set = new Set(filters.brands);
-    set.has(b) ? set.delete(b) : set.add(b);
-    onChange({ ...filters, brands: Array.from(set) });
-  };
-
+  // Keep brands state for API compat but don't show the Brands filter section
   const clearAll = () => onChange({ priceRange: [0, maxPrice], brands: [] });
 
   return (
@@ -92,27 +60,6 @@ const SidebarFilter = ({ categoryId, maxPrice = 100000, filters, onChange, subca
           className="w-full"
         />
       </div>
-
-      {brands.length > 0 && (
-        <div className="mb-6 pb-6 border-b border-gray-200">
-          <h3 className="font-bold text-gray-900 mb-4">Brands</h3>
-          <ul className="space-y-3">
-            {brands.map((b) => (
-              <li key={b.name} className="flex items-center gap-2">
-                <Checkbox
-                  id={`brand-${b.name}`}
-                  checked={filters.brands.includes(b.name)}
-                  onCheckedChange={() => toggleBrand(b.name)}
-                />
-                <label htmlFor={`brand-${b.name}`} className="text-sm text-gray-600 cursor-pointer flex-1 flex justify-between">
-                  <span>{b.name}</span>
-                  <span className="text-gray-400">({b.count})</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       <button
         onClick={clearAll}

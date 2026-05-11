@@ -49,20 +49,24 @@ const Product = () => {
   );
   const [locationOpen, setLocationOpen] = useState(false);
 
-  const { data: product, isLoading } = useQuery({
+  const { data: product, isLoading, isError } = useQuery({
     queryKey: ["product", slug],
     queryFn: async () => {
+      if (!slug) throw new Error("No slug provided");
       const { data, error } = await supabase
         .from("products")
-        .select("*, categories(name, slug)")
+        .select("*, category:categories(name, slug)")
         .eq("slug", slug)
-        .single();
+        .eq("is_active", true)
+        .maybeSingle();
 
       if (error) throw error;
-      return data as ProductType & { categories: { name: string; slug: string } | null };
+      if (!data) throw new Error("Product not found");
+      return data as ProductType & { category: { name: string; slug: string } | null };
     },
     enabled: !!slug,
     staleTime: 60 * 1000,
+    retry: 1,
   });
 
   const formatPrice = (amount: number) =>
@@ -124,20 +128,24 @@ const Product = () => {
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1 container py-12 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-gray-500">Loading product...</p>
+          </div>
         </main>
         <Footer />
       </div>
     );
   }
 
-  if (!product) {
+  if (isError || !product) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1 container py-12">
           <div className="text-center py-16">
-            <h1 className="text-2xl font-bold mb-4">Product not found</h1>
+            <h1 className="text-2xl font-bold mb-2">Product not found</h1>
+            <p className="text-gray-500 mb-6">This product may have been removed or the link is incorrect.</p>
             <Button asChild>
               <Link to="/">Back to Shop</Link>
             </Button>
@@ -511,7 +519,7 @@ const Product = () => {
         </div>
 
         {/* Bottom Tabs */}
-        <div className="mt-12 md:mt-16 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div id="description" className="mt-12 md:mt-16 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm scroll-mt-24">
           <Tabs defaultValue="description" className="w-full">
             <TabsList className="w-full justify-start border-b border-gray-200 rounded-none h-[60px] bg-gray-50/50 p-0 gap-4 md:gap-8 px-4 md:px-8 overflow-x-auto">
               <TabsTrigger

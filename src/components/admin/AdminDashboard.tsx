@@ -2,139 +2,47 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  DollarSign, 
-  ShoppingBag, 
-  Users, 
-  Package, 
-  ShoppingCart,
-  ArrowUpRight,
-  ArrowDownRight,
-  CalendarDays,
-  MoreHorizontal
+  DollarSign, ShoppingBag, Users, Package, ShoppingCart,
+  ArrowUpRight, CalendarDays, Loader2, AlertTriangle
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell
 } from "recharts";
 
-// Dummy Data for Charts
-const salesData = [
-  { name: 'Mon', thisWeek: 2400, lastWeek: 1800 },
-  { name: 'Tue', thisWeek: 3600, lastWeek: 2400 },
-  { name: 'Wed', thisWeek: 6200, lastWeek: 3100 },
-  { name: 'Thu', thisWeek: 3800, lastWeek: 2100 },
-  { name: 'Fri', thisWeek: 5900, lastWeek: 3800 },
-  { name: 'Sat', thisWeek: 4500, lastWeek: 2900 },
-  { name: 'Sun', thisWeek: 5200, lastWeek: 3600 },
-];
-
-const orderStatusData = [
-  { name: 'Delivered', value: 198, color: '#FF6B00' },
-  { name: 'Processing', value: 78, color: '#8B5CF6' },
-  { name: 'Shipped', value: 45, color: '#F59E0B' },
-  { name: 'Pending', value: 23, color: '#3B82F6' },
-  { name: 'Cancelled', value: 12, color: '#10B981' },
-];
-
-const bestSelling = [
-  { name: 'DeWalt 20V MAX Cordless Drill', sold: 128, revenue: 15974.72, img: 'https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&w=50&q=80' },
-  { name: 'Milwaukee M18 Fuel Hammer Drill', sold: 96, revenue: 13823.04, img: 'https://images.unsplash.com/photo-1572981779307-38b8cabb2407?auto=format&fit=crop&w=50&q=80' },
-  { name: 'Makita 18V LXT Cordless Drill', sold: 84, revenue: 10617.16, img: 'https://images.unsplash.com/photo-1584444589320-994c6508f7ce?auto=format&fit=crop&w=50&q=80' },
-  { name: 'Bosch 12V Max Cordless Drill', sold: 72, revenue: 7919.28, img: 'https://images.unsplash.com/photo-1508873535973-207d47e4526d?auto=format&fit=crop&w=50&q=80' },
-  { name: 'Ryobi 18V One+ Cordless Drill', sold: 65, revenue: 6174.35, img: 'https://images.unsplash.com/photo-1590209673229-2ec8c9190ab7?auto=format&fit=crop&w=50&q=80' },
-];
-
-const topCustomers = [
-  { name: 'John Smith', email: 'john.smith@example.com', orders: 12, spent: 1256.97, initials: 'JS' },
-  { name: 'Sarah Johnson', email: 'sarah.j@example.com', orders: 9, spent: 987.50, initials: 'SJ' },
-  { name: 'Michael Brown', email: 'michael.b@example.com', orders: 8, spent: 876.40, initials: 'MB' },
-  { name: 'Emily Davis', email: 'emily.d@example.com', orders: 7, spent: 765.89, initials: 'ED' },
-  { name: 'David Wilson', email: 'david.w@example.com', orders: 6, spent: 645.30, initials: 'DW' },
-];
+const STATUS_COLORS: Record<string, string> = {
+  delivered: "#10B981", processing: "#8B5CF6",
+  shipped: "#F59E0B", pending: "#3B82F6", cancelled: "#EF4444",
+};
 
 interface Stats {
-  totalProducts: number;
-  totalOrders: number;
-  totalCustomers: number;
-  totalSales: number;
-  pendingOrders: number;
+  totalProducts: number; totalOrders: number;
+  totalCustomers: number; totalSales: number; pendingOrders: number;
 }
 
 const AdminDashboard = () => {
-  const [stats, setStats] = useState<Stats>({
-    totalProducts: 0,
-    totalOrders: 0,
-    totalCustomers: 0,
-    totalSales: 0,
-    pendingOrders: 0,
-  });
+  const [stats, setStats] = useState<Stats>({ totalProducts: 0, totalOrders: 0, totalCustomers: 0, totalSales: 0, pendingOrders: 0 });
   const [isLoading, setIsLoading] = useState(true);
-
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [inventoryAlerts, setInventoryAlerts] = useState<any[]>([]);
+  const [orderStatusData, setOrderStatusData] = useState<any[]>([]);
+  const [bestSelling, setBestSelling] = useState<any[]>([]);
+  const [topCustomers, setTopCustomers] = useState<any[]>([]);
+  const [salesChartData, setSalesChartData] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchStats();
-    fetchRecentData();
+    let cancelled = false;
+    const run = async () => {
+      await Promise.all([fetchStats(), fetchRecentData(), fetchChartData()]);
+      if (!cancelled) setIsLoading(false);
+    };
+    run();
+    return () => { cancelled = true; };
   }, []);
-
-  const fetchRecentData = async () => {
-    const { data: ordersData } = await supabase
-      .from("orders")
-      .select(`
-        id, 
-        total, 
-        status, 
-        created_at,
-        shipping_address
-      `)
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (ordersData) {
-      setRecentOrders(ordersData.map(o => {
-        const address = o.shipping_address as { full_name?: string } | null;
-        return {
-          id: `#TM-${o.id.substring(0, 8).toUpperCase()}`,
-          customer: address?.full_name || 'Guest',
-          amount: o.total,
-          status: o.status.charAt(0).toUpperCase() + o.status.slice(1),
-          time: new Date(o.created_at).toLocaleDateString()
-        };
-      }));
-    }
-
-    // Low Stock Products
-    const { data: productsData } = await supabase
-      .from("products")
-      .select("name, sku, stock_quantity, image_url")
-      .lt("stock_quantity", 10)
-      .order("stock_quantity", { ascending: true })
-      .limit(5);
-
-    if (productsData) {
-      setInventoryAlerts(productsData.map(p => ({
-        name: p.name,
-        sku: p.sku || 'N/A',
-        stock: p.stock_quantity,
-        img: p.image_url || 'https://via.placeholder.com/50'
-      })));
-    }
-  };
 
   const fetchStats = async () => {
     const [productsRes, ordersRes, customersRes, pendingRes] = await Promise.all([
@@ -143,402 +51,362 @@ const AdminDashboard = () => {
       supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
     ]);
-
-    const totalSales = ordersRes.data?.reduce((acc, order) => acc + (order.total || 0), 0) || 0;
-
+    const totalSales = ordersRes.data?.reduce((acc, o) => acc + (o.total || 0), 0) || 0;
     setStats({
       totalProducts: productsRes.count || 0,
       totalOrders: ordersRes.count || 0,
       totalCustomers: customersRes.count || 0,
-      totalSales: totalSales,
+      totalSales,
       pendingOrders: pendingRes.count || 0,
     });
-    setIsLoading(false);
   };
 
-  const formatPrice = (price: number) => {
-    return `Kshs ${Number(price).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const fetchRecentData = async () => {
+    // Recent Orders
+    const { data: ordersData } = await supabase
+      .from("orders").select("id, total, status, created_at, shipping_address")
+      .order("created_at", { ascending: false }).limit(5);
+    if (ordersData) {
+      setRecentOrders(ordersData.map(o => {
+        const addr = o.shipping_address as { full_name?: string } | null;
+        return {
+          id: `#TM-${o.id.substring(0, 8).toUpperCase()}`,
+          customer: addr?.full_name || "Guest",
+          amount: o.total,
+          status: o.status.charAt(0).toUpperCase() + o.status.slice(1),
+          time: new Date(o.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+        };
+      }));
+    }
+
+    // Order Status breakdown
+    const { data: allOrders } = await supabase.from("orders").select("status");
+    if (allOrders) {
+      const counts: Record<string, number> = {};
+      allOrders.forEach(o => { counts[o.status] = (counts[o.status] || 0) + 1; });
+      setOrderStatusData(Object.entries(counts).map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value,
+        color: STATUS_COLORS[name] || "#9CA3AF",
+      })));
+    }
+
+    // Inventory alerts (low stock)
+    const { data: productsData } = await supabase
+      .from("products").select("name, sku, stock_quantity, image_url")
+      .lt("stock_quantity", 10).order("stock_quantity", { ascending: true }).limit(5);
+    if (productsData) {
+      setInventoryAlerts(productsData.map(p => ({
+        name: p.name, sku: p.sku || "N/A", stock: p.stock_quantity, img: p.image_url,
+      })));
+    }
+
+    // Best selling products (by order item count)
+    const { data: bsData } = await supabase
+      .from("order_items").select("product_id, quantity, price, products(name, image_url)");
+    if (bsData) {
+      const map: Record<string, { name: string; img: string; sold: number; revenue: number }> = {};
+      bsData.forEach((item: any) => {
+        const pid = item.product_id;
+        if (!map[pid]) map[pid] = { name: item.products?.name || "Unknown", img: item.products?.image_url || "", sold: 0, revenue: 0 };
+        map[pid].sold += item.quantity || 1;
+        map[pid].revenue += (item.price || 0) * (item.quantity || 1);
+      });
+      setBestSelling(Object.values(map).sort((a, b) => b.sold - a.sold).slice(0, 5));
+    }
+
+    // Top customers by total spend
+    const { data: custData } = await supabase
+      .from("orders").select("user_id, total, shipping_address, profiles(full_name)");
+    if (custData) {
+      const map: Record<string, { name: string; orders: number; spent: number }> = {};
+      custData.forEach((o: any) => {
+        if (!o.user_id) return;
+        const addr = o.shipping_address as { full_name?: string } | null;
+        const name = o.profiles?.full_name || addr?.full_name || "Guest";
+        if (!map[o.user_id]) map[o.user_id] = { name, orders: 0, spent: 0 };
+        map[o.user_id].orders += 1;
+        map[o.user_id].spent += o.total || 0;
+      });
+      setTopCustomers(Object.values(map).sort((a, b) => b.spent - a.spent).slice(0, 5));
+    }
   };
+
+  const fetchChartData = async () => {
+    // Last 7 days sales per day
+    const now = new Date();
+    const days: any[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const start = new Date(d); start.setHours(0, 0, 0, 0);
+      const end = new Date(d); end.setHours(23, 59, 59, 999);
+      const { data } = await supabase.from("orders")
+        .select("total").gte("created_at", start.toISOString()).lte("created_at", end.toISOString());
+      const total = data?.reduce((s, o) => s + (o.total || 0), 0) || 0;
+      days.push({ name: d.toLocaleDateString("en-GB", { weekday: "short" }), sales: total });
+    }
+    setSalesChartData(days);
+  };
+
+  const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
+  const totalStatusOrders = orderStatusData.reduce((s, d) => s + d.value, 0);
+
+  const StatCard = ({ icon: Icon, bg, iconColor, label, value, loading }: any) => (
+    <Card>
+      <CardContent className="p-5 flex items-center gap-4">
+        <div className={`${bg} p-3 rounded-full shrink-0`}>
+          <Icon className={`h-6 w-6 ${iconColor}`} />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-gray-500">{label}</p>
+          <h3 className="text-xl font-bold text-gray-900">
+            {loading ? <Loader2 className="h-5 w-5 animate-spin inline" /> : value}
+          </h3>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
-      
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-1">Welcome back, Admin! Here's what's happening with your store.</p>
+          <p className="text-sm text-gray-500 mt-1">Live store overview</p>
         </div>
         <div className="flex items-center gap-2 bg-white border rounded-md px-3 py-1.5 shadow-sm">
           <CalendarDays className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-700">May 13 - May 19, 2024</span>
+          <span className="text-sm font-medium text-gray-700">{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}</span>
         </div>
       </div>
 
-      {/* Top Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-blue-50 p-3 rounded-full shrink-0">
-              <DollarSign className="h-6 w-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Total Sales</p>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-xl font-bold text-gray-900">{isLoading ? "..." : formatPrice(stats.totalSales)}</h3>
-                <span className="text-[10px] font-bold text-green-600 flex items-center">
-                  <ArrowUpRight className="h-3 w-3" /> 18.6%
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400">vs May 6 - May 12, 2024</p>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-sky-50 p-3 rounded-full shrink-0">
-              <ShoppingBag className="h-6 w-6 text-sky-500" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Total Orders</p>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-xl font-bold text-gray-900">{isLoading ? "..." : stats.totalOrders.toLocaleString()}</h3>
-                <span className="text-[10px] font-bold text-green-600 flex items-center">
-                  <ArrowUpRight className="h-3 w-3" /> 12.4%
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400">vs May 6 - May 12, 2024</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-green-50 p-3 rounded-full shrink-0">
-              <Users className="h-6 w-6 text-green-500" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Total Customers</p>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-xl font-bold text-gray-900">{isLoading ? "..." : stats.totalCustomers.toLocaleString()}</h3>
-                <span className="text-[10px] font-bold text-green-600 flex items-center">
-                  <ArrowUpRight className="h-3 w-3" /> 9.8%
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400">vs May 6 - May 12, 2024</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-orange-50 p-3 rounded-full shrink-0">
-              <Package className="h-6 w-6 text-orange-500" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Products</p>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-xl font-bold text-gray-900">{isLoading ? "..." : stats.totalProducts.toLocaleString()}</h3>
-                <span className="text-[10px] font-bold text-green-600 flex items-center">
-                  <ArrowUpRight className="h-3 w-3" /> 3.2%
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400">vs May 6 - May 12, 2024</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className="bg-red-50 p-3 rounded-full shrink-0">
-              <ShoppingCart className="h-6 w-6 text-red-500" />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Pending Orders</p>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-xl font-bold text-gray-900">{isLoading ? "..." : stats.pendingOrders.toLocaleString()}</h3>
-                <span className="text-[10px] font-bold text-red-600 flex items-center">
-                  <ArrowDownRight className="h-3 w-3" /> 8.0%
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400">vs May 6 - May 12, 2024</p>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard icon={DollarSign} bg="bg-blue-50" iconColor="text-blue-500" label="Total Sales" value={fmt(stats.totalSales)} loading={isLoading} />
+        <StatCard icon={ShoppingBag} bg="bg-sky-50" iconColor="text-sky-500" label="Total Orders" value={stats.totalOrders.toLocaleString()} loading={isLoading} />
+        <StatCard icon={Users} bg="bg-green-50" iconColor="text-green-500" label="Customers" value={stats.totalCustomers.toLocaleString()} loading={isLoading} />
+        <StatCard icon={Package} bg="bg-orange-50" iconColor="text-orange-500" label="Products" value={stats.totalProducts.toLocaleString()} loading={isLoading} />
+        <StatCard icon={ShoppingCart} bg="bg-red-50" iconColor="text-red-500" label="Pending Orders" value={stats.pendingOrders.toLocaleString()} loading={isLoading} />
       </div>
 
-      {/* Middle Row */}
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Sales Overview Chart */}
-        <Card className="lg:col-span-1 xl:col-span-1 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base font-bold">Sales Overview</CardTitle>
-            <Select defaultValue="this-week">
-              <SelectTrigger className="w-[120px] h-8 text-xs">
-                <SelectValue placeholder="This Week" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="this-week">This Week</SelectItem>
-                <SelectItem value="last-week">Last Week</SelectItem>
-                <SelectItem value="this-month">This Month</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* Sales Chart */}
+        <Card className="lg:col-span-1 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold">Sales Overview (7 days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4 mb-4 text-xs">
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#FF6B00]"></div>
-                <span className="text-gray-600 font-medium">This Week</span>
+            {isLoading ? (
+              <div className="h-[200px] flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : salesChartData.length === 0 ? (
+              <div className="h-[200px] flex items-center justify-center text-sm text-gray-400">No sales data</div>
+            ) : (
+              <div className="h-[200px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={salesChartData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#9CA3AF" }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#9CA3AF" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}K`} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} formatter={(v: any) => [fmt(v), "Sales"]} />
+                    <Line type="monotone" dataKey="sales" stroke="#FF6B00" strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: "#fff" }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-full border-2 border-dashed border-gray-400"></div>
-                <span className="text-gray-400">Last Week</span>
-              </div>
-            </div>
-            <div className="h-[200px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={salesData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(val) => `$${val / 1000}K`} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    labelStyle={{ fontWeight: 'bold', color: '#374151' }}
-                  />
-                  <Line type="monotone" dataKey="thisWeek" stroke="#FF6B00" strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
-                  <Line type="monotone" dataKey="lastWeek" stroke="#9CA3AF" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Order Status */}
         <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold">Order Status</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center pt-0">
-            <div className="relative h-[160px] w-full flex justify-center mt-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={orderStatusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={70}
-                    paddingAngle={2}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {orderStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-2xl font-bold text-gray-900">356</span>
-                <span className="text-xs text-gray-500">Total</span>
-              </div>
-            </div>
-            <div className="w-full mt-2 space-y-2">
-              {orderStatusData.map((item) => (
-                <div key={item.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-gray-600">{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{item.value}</span>
-                    <span className="text-gray-400 w-10 text-right">({((item.value / 356) * 100).toFixed(1)}%)</span>
+          <CardContent className="flex flex-col items-center pt-0">
+            {isLoading ? (
+              <div className="h-[200px] flex items-center justify-center w-full"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : orderStatusData.length === 0 ? (
+              <div className="h-[200px] flex items-center justify-center text-sm text-gray-400">No orders yet</div>
+            ) : (
+              <>
+                <div className="relative h-[160px] w-full flex justify-center mt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={orderStatusData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none">
+                        {orderStatusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-2xl font-bold text-gray-900">{totalStatusOrders}</span>
+                    <span className="text-xs text-gray-500">Total</span>
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="w-full mt-2 space-y-2">
+                  {orderStatusData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-gray-600">{item.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.value}</span>
+                        <span className="text-gray-400 w-12 text-right">({totalStatusOrders ? ((item.value / totalStatusOrders) * 100).toFixed(1) : 0}%)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
         {/* Recent Orders */}
         <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <CardHeader className="pb-4">
             <CardTitle className="text-base font-bold">Recent Orders</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {recentOrders.length > 0 ? recentOrders.map((order) => {
-                let badgeColor = "bg-gray-100 text-gray-700";
-                if (order.status === 'Delivered') badgeColor = "bg-green-100 text-green-700";
-                if (order.status === 'Processing') badgeColor = "bg-blue-100 text-blue-700";
-                if (order.status === 'Shipped') badgeColor = "bg-orange-100 text-orange-700";
-                if (order.status === 'Pending') badgeColor = "bg-purple-100 text-purple-700";
-
-                return (
-                  <div key={order.id} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                    <div>
-                      <div className="font-medium text-sm text-gray-900">{order.id}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{order.customer}</div>
+            {isLoading ? (
+              <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : recentOrders.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-500">No orders yet.</div>
+            ) : (
+              <div className="divide-y">
+                {recentOrders.map((order) => {
+                  const colors: Record<string, string> = { Delivered: "bg-green-100 text-green-700", Processing: "bg-blue-100 text-blue-700", Shipped: "bg-orange-100 text-orange-700", Pending: "bg-purple-100 text-purple-700", Cancelled: "bg-red-100 text-red-700" };
+                  return (
+                    <div key={order.id} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+                      <div>
+                        <div className="font-medium text-sm text-gray-900">{order.id}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{order.customer}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-sm text-gray-900">{fmt(order.amount)}</div>
+                      </div>
+                      <Badge variant="secondary" className={`font-normal text-[10px] px-2 py-0 h-5 ${colors[order.status] || "bg-gray-100 text-gray-700"}`}>{order.status}</Badge>
+                      <div className="text-xs text-gray-400 w-14 text-right">{order.time}</div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-medium text-sm text-gray-900">{formatPrice(order.amount)}</div>
-                    </div>
-                    <div>
-                      <Badge variant="secondary" className={`font-normal text-[10px] px-2 py-0 h-5 ${badgeColor}`}>
-                        {order.status}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-gray-400 w-16 text-right">
-                      {order.time}
-                    </div>
-                  </div>
-                );
-              }) : (
-                <div className="p-4 text-center text-sm text-gray-500">No recent orders found.</div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
-
       </div>
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Best Selling Products */}
+        {/* Best Selling */}
         <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <CardHeader className="pb-4">
             <CardTitle className="text-base font-bold">Best Selling Products</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 bg-gray-50/50 border-b">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Product</th>
-                  <th className="px-4 py-3 font-medium text-center">Sold</th>
-                  <th className="px-4 py-3 font-medium text-right">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {bestSelling.map((product, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 flex items-center gap-3">
-                      <img src={product.img} alt={product.name} className="w-8 h-8 rounded object-cover border" />
-                      <span className="font-medium text-gray-900 truncate max-w-[120px] sm:max-w-[180px]">{product.name}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">{product.sold}</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{formatPrice(product.revenue)}</td>
+            {isLoading ? (
+              <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : bestSelling.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-500">No sales data yet.</div>
+            ) : (
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-gray-500 bg-gray-50/50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Product</th>
+                    <th className="px-4 py-3 font-medium text-center">Sold</th>
+                    <th className="px-4 py-3 font-medium text-right">Revenue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y">
+                  {bestSelling.map((p, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 flex items-center gap-3">
+                        {p.img ? <img src={p.img} alt={p.name} className="w-8 h-8 rounded object-cover border" /> : <div className="w-8 h-8 rounded bg-gray-100 border flex items-center justify-center"><Package className="h-4 w-4 text-gray-400" /></div>}
+                        <span className="font-medium text-gray-900 truncate max-w-[140px]">{p.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">{p.sold}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(p.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
 
         {/* Top Customers */}
         <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <CardHeader className="pb-4">
             <CardTitle className="text-base font-bold">Top Customers</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 bg-gray-50/50 border-b">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Customer</th>
-                  <th className="px-4 py-3 font-medium text-center">Orders</th>
-                  <th className="px-4 py-3 font-medium text-right">Total Spent</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {topCustomers.map((customer, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">{customer.initials}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium text-gray-900">{customer.name}</div>
-                        <div className="text-[10px] text-gray-500 truncate max-w-[100px]">{customer.email}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">{customer.orders}</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{formatPrice(customer.spent)}</td>
+            {isLoading ? (
+              <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : topCustomers.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-500">No customer data yet.</div>
+            ) : (
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-gray-500 bg-gray-50/50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium text-center">Orders</th>
+                    <th className="px-4 py-3 font-medium text-right">Spent</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y">
+                  {topCustomers.map((c, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">{c.name.split(" ").map((s: string) => s[0]).join("").slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-gray-900 truncate max-w-[110px]">{c.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">{c.orders}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt(c.spent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
 
-
-        {/* Inventory & System */}
-        <div className="flex flex-col gap-6">
-          <Card className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-bold">Inventory Alerts</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2 pb-0">
+        {/* Inventory Alerts */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-bold">Inventory Alerts</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2 pb-0">
+            {isLoading ? (
+              <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+            ) : inventoryAlerts.length === 0 ? (
+              <div className="py-4 text-center text-sm text-gray-500">✅ All products have sufficient stock.</div>
+            ) : (
               <div className="divide-y">
-                {inventoryAlerts.length > 0 ? inventoryAlerts.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-3">
+                {inventoryAlerts.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between py-3">
                     <div className="flex items-center gap-3">
-                      <img src={item.img} alt={item.name} className="w-8 h-8 rounded object-cover border" />
+                      {item.img ? <img src={item.img} alt={item.name} className="w-8 h-8 rounded object-cover border" /> : <div className="w-8 h-8 rounded bg-gray-100 border flex items-center justify-center"><Package className="h-4 w-4 text-gray-400" /></div>}
                       <div>
-                        <div className="font-medium text-sm text-gray-900 truncate max-w-[120px]">{item.name}</div>
+                        <div className="font-medium text-sm text-gray-900 truncate max-w-[130px]">{item.name}</div>
                         <div className="text-[10px] text-gray-500">SKU: {item.sku}</div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-red-600">{item.stock}</div>
+                      <div className="font-bold text-red-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />{item.stock}
+                      </div>
                       <div className="text-[10px] text-red-400">Low Stock</div>
                     </div>
                   </div>
-                )) : (
-                  <div className="py-4 text-center text-sm text-gray-500">No inventory alerts!</div>
-                )}
+                ))}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-base font-bold">System Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2 text-sm">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Server Status</span>
-                  <div className="flex items-center gap-1.5 text-green-600 font-medium">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    Online
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Last Backup</span>
-                  <span className="font-medium text-gray-900">May 19, 2024 02:00 AM</span>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">Storage Usage</span>
-                    <span className="font-medium text-gray-900 text-xs">68% (136 GB / 200 GB)</span>
-                  </div>
-                  <Progress value={68} className="h-1.5 bg-gray-100" />
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-gray-500">Active Users</span>
-                  <span className="text-xs text-gray-500">7 Admins Online</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

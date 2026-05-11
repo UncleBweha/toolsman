@@ -57,9 +57,12 @@ const Header = () => {
         <div className="flex items-center justify-between gap-6">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0 flex items-center">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#1a1a2e]">
-              TOOLS<span className="text-[#FF5722]">MAN</span>
-            </h1>
+            <div className="flex flex-col leading-none">
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#1a1a2e]">
+                TOOLS<span className="text-[#FF5722]">MAN</span>
+              </h1>
+              <span className="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-widest">Online Store</span>
+            </div>
           </Link>
 
           {/* Search Bar - Desktop */}
@@ -273,9 +276,6 @@ const Header = () => {
                   </div>
                 );
               })}
-              <Link to="/brands" className="text-gray-700 hover:text-[#FF5722] px-4 py-2 text-sm font-medium whitespace-nowrap">
-                Brands
-              </Link>
               <Link to="/deals" className="text-gray-700 hover:text-[#FF5722] px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-1">
                 Deals <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">HOT</span>
               </Link>
