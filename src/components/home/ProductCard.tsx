@@ -28,6 +28,7 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Prefetch product page data on hover for instant navigation
   const handlePrefetch = useCallback(() => {
