@@ -245,10 +245,10 @@ const Product = () => {
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 flex-wrap">
           <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
           <ChevronRight className="h-3 w-3" />
-          {product.categories && (
+          {product.category && (
             <>
-              <Link to={`/category/${product.categories.slug}`} className="hover:text-gray-900 transition-colors">
-                {product.categories.name}
+              <Link to={`/category/${product.category.slug}`} className="hover:text-gray-900 transition-colors">
+                {product.category.name}
               </Link>
               <ChevronRight className="h-3 w-3" />
             </>
@@ -600,7 +600,7 @@ const Product = () => {
                     .slice(0, 5);
                 }
                 const meta = [
-                  product.categories?.name && `Category: ${product.categories.name}`,
+                  product.category?.name && `Category: ${product.category.name}`,
                   product.sku && `SKU: ${product.sku}`,
                   product.stock_quantity !== null && product.stock_quantity > 0 && "In stock and ready to ship",
                 ].filter(Boolean) as string[];
