@@ -123,6 +123,44 @@ const Product = () => {
   const estimatedDelivery =
     deliveryLocation.toLowerCase() === "nairobi" ? "1–2 business days" : "2–5 business days";
 
+  // Inject OG / Twitter meta tags for social sharing & WhatsApp previews
+  // MUST be before any early returns to respect Rules of Hooks
+  useEffect(() => {
+    if (!product) return;
+    const plainDesc = (product.description || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 160);
+    const url = `${SITE.url}/product/${product.slug}`;
+    const image = product.image_url || (product.images && product.images[0]) || "";
+    const title = `${product.name} | ${SITE.name}`;
+
+    const setMeta = (selector: string, attr: string, value: string) => {
+      let el = document.head.querySelector<HTMLMetaElement>(selector);
+      if (!el) {
+        el = document.createElement("meta");
+        const [k, v] = selector.replace(/^meta\[/, "").replace(/\]$/, "").split("=");
+        el.setAttribute(k, v.replace(/['"]/g, ""));
+        document.head.appendChild(el);
+      }
+      el.setAttribute(attr, value);
+    };
+
+    document.title = title;
+    setMeta('meta[name="description"]', "content", plainDesc);
+    setMeta('meta[property="og:title"]', "content", title);
+    setMeta('meta[property="og:description"]', "content", plainDesc);
+    setMeta('meta[property="og:image"]', "content", image);
+    setMeta('meta[property="og:url"]', "content", url);
+    setMeta('meta[property="og:type"]', "content", "product");
+    setMeta('meta[property="og:site_name"]', "content", SITE.name);
+    setMeta('meta[name="twitter:card"]', "content", "summary_large_image");
+    setMeta('meta[name="twitter:title"]', "content", title);
+    setMeta('meta[name="twitter:description"]', "content", plainDesc);
+    setMeta('meta[name="twitter:image"]', "content", image);
+  }, [product]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -207,10 +245,10 @@ const Product = () => {
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 flex-wrap">
           <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
           <ChevronRight className="h-3 w-3" />
-          {product.categories && (
+          {product.category && (
             <>
-              <Link to={`/category/${product.categories.slug}`} className="hover:text-gray-900 transition-colors">
-                {product.categories.name}
+              <Link to={`/category/${product.category.slug}`} className="hover:text-gray-900 transition-colors">
+                {product.category.name}
               </Link>
               <ChevronRight className="h-3 w-3" />
             </>
@@ -562,7 +600,7 @@ const Product = () => {
                     .slice(0, 5);
                 }
                 const meta = [
-                  product.categories?.name && `Category: ${product.categories.name}`,
+                  product.category?.name && `Category: ${product.category.name}`,
                   product.sku && `SKU: ${product.sku}`,
                   product.stock_quantity !== null && product.stock_quantity > 0 && "In stock and ready to ship",
                 ].filter(Boolean) as string[];

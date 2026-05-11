@@ -314,17 +314,21 @@ const BulkProductImport = () => {
     const errorCount = updatedProducts.filter((p) => p.status === "error").length;
     const duplicateCount = updatedProducts.filter((p) => p.status === "duplicate").length;
 
-    // Log import history
-    await supabase.from("import_history").insert({
-      filename: "bulk_import",
-      total_rows: products.length,
-      success_count: successCount,
-      error_count: errorCount + duplicateCount,
-      status: errorCount === 0 && duplicateCount === 0 ? "completed" : "completed",
-      errors: errors as any,
-      imported_product_ids: importedIds,
-      completed_at: new Date().toISOString(),
-    });
+    // Log import history (table optional)
+    try {
+      await (supabase.from as any)("import_history").insert({
+        filename: "bulk_import",
+        total_rows: products.length,
+        success_count: successCount,
+        error_count: errorCount + duplicateCount,
+        status: "completed",
+        errors: errors as any,
+        imported_product_ids: importedIds,
+        completed_at: new Date().toISOString(),
+      });
+    } catch {
+      // ignore if table not present
+    }
 
     if (errorCount === 0 && duplicateCount === 0) {
       toast.success(`Successfully imported ${successCount} products`);

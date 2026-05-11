@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, Loader2 } from "lucide-react";
 import { useState, useCallback } from "react";
 import { useCartContext } from "@/contexts/CartContext";
@@ -28,6 +28,7 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // Prefetch product page data on hover for instant navigation
   const handlePrefetch = useCallback(() => {
