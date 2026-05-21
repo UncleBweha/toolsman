@@ -24,9 +24,25 @@ export const DELIVERY_OPTIONS = {
   ],
 };
 
-export function getDeliveryFee(county: string, method: "standard" | "express"): number {
+/** In-store pickup branch */
+export const STORE_BRANCHES = [
+  {
+    id: "simara",
+    name: "Toolsman — Simara Mall",
+    address: "Simara Mall, 6th Floor, Shop 03 — Tom Mboya Street (Behind Archives), Nairobi",
+    phone: "+254 701 043041",
+    hours: "Mon–Sat: 8am–6pm",
+    pickupEstimate: "Ready within 2–4 hours after order confirmation",
+    mapUrl: "https://maps.app.goo.gl/PaqrWrvSo4bDH2V97",
+  },
+] as const;
+
+export type StoreBranchId = typeof STORE_BRANCHES[number]["id"];
+
+export function getDeliveryFee(county: string, method: "standard" | "express" | "pickup"): number {
+  if (method === "pickup") return 0;
   const isNairobi = county.toLowerCase() === "nairobi";
-  return isNairobi ? DELIVERY_FEES.nairobi[method] : DELIVERY_FEES.other[method];
+  return isNairobi ? DELIVERY_FEES.nairobi[method as "standard" | "express"] : DELIVERY_FEES.other[method as "standard" | "express"];
 }
 
 export function getDeliveryOptions(county: string) {

@@ -23,6 +23,7 @@ const formatPrice = (price: number) => {
 const Search = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
+  const tagFilter = searchParams.get("tag") || "";
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState("relevance");
@@ -30,7 +31,8 @@ const Search = () => {
 
   useEffect(() => {
     const fetchProducts = async () => {
-      if (!query.trim()) {
+      // Need at least one of: text query or tag filter
+      if (!query.trim() && !tagFilter.trim()) {
         setProducts([]);
         setIsLoading(false);
         return;
@@ -38,43 +40,62 @@ const Search = () => {
 
       setIsLoading(true);
 
-      let dbQuery = supabase
-        .from("products")
-        .select(`*, category:categories(*)`)
-        .eq("is_active", true)
-        .or(`name.ilike.%${query}%,description.ilike.%${query}%,sku.ilike.%${query}%`);
+      try {
+        if (tagFilter.trim()) {
+          // Tag-based search: fetch products that have the tag in either column
+          const tag = tagFilter.trim().toLowerCase();
+          const [r1, r2] = await Promise.all([
+            supabase
+              .from("products")
+              .select(`*, category:categories(*)`)
+              .eq("is_active", true)
+              .overlaps("tags", [tag])
+              .order("created_at", { ascending: false }),
+            supabase
+              .from("products")
+              .select(`*, category:categories(*)`)
+              .eq("is_active", true)
+              .overlaps("generated_tags", [tag])
+              .order("created_at", { ascending: false }),
+          ]);
+          const merged = [...(r1.data || []), ...(r2.data || [])];
+          const seen = new Set<string>();
+          const unique = merged.filter((p: Product) => {
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+          });
+          setProducts(unique as Product[]);
+        } else {
+          // Text-based search
+          let dbQuery = supabase
+            .from("products")
+            .select(`*, category:categories(*)`)
+            .eq("is_active", true)
+            .or(`name.ilike.%${query}%,description.ilike.%${query}%,sku.ilike.%${query}%`);
 
-      // Apply sorting
-      switch (sortBy) {
-        case "price-low":
-          dbQuery = dbQuery.order("price", { ascending: true });
-          break;
-        case "price-high":
-          dbQuery = dbQuery.order("price", { ascending: false });
-          break;
-        case "name":
-          dbQuery = dbQuery.order("name", { ascending: true });
-          break;
-        case "newest":
-          dbQuery = dbQuery.order("created_at", { ascending: false });
-          break;
-        default:
-          dbQuery = dbQuery.order("created_at", { ascending: false });
-      }
+          switch (sortBy) {
+            case "price-low": dbQuery = dbQuery.order("price", { ascending: true }); break;
+            case "price-high": dbQuery = dbQuery.order("price", { ascending: false }); break;
+            case "name": dbQuery = dbQuery.order("name", { ascending: true }); break;
+            case "newest": dbQuery = dbQuery.order("created_at", { ascending: false }); break;
+            default: dbQuery = dbQuery.order("created_at", { ascending: false });
+          }
 
-      const { data, error } = await dbQuery;
-
-      if (error) {
-        console.error("Search error:", error);
+          const { data, error } = await dbQuery;
+          if (error) throw error;
+          setProducts((data as unknown as Product[]) || []);
+        }
+      } catch (err) {
+        console.error("Search error:", err);
         setProducts([]);
-      } else {
-        setProducts(data || []);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     fetchProducts();
-  }, [query, sortBy]);
+  }, [query, tagFilter, sortBy]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -93,7 +114,10 @@ const Search = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-              Search Results for "{query}"
+              {tagFilter
+                ? <span>Products tagged <span className="text-[#FF5722]">#{tagFilter}</span></span>
+                : <>Search Results for "{query}"</>
+              }
             </h1>
             <p className="text-muted-foreground mt-1">
               {isLoading ? "Searching..." : `${products.length} product${products.length !== 1 ? "s" : ""} found`}
@@ -140,7 +164,10 @@ const Search = () => {
         ) : products.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-muted-foreground text-lg mb-4">
-              No products found for "{query}"
+              {tagFilter
+                ? `No products found for tag "${tagFilter}"`
+                : `No products found for "${query}"`
+              }
             </p>
             <p className="text-muted-foreground mb-6">
               Try searching with different keywords or browse our categories

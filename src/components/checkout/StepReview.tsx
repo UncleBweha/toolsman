@@ -1,16 +1,18 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Lock } from "lucide-react";
+import { Loader2, Lock, Receipt, Store } from "lucide-react";
 import { ShippingInfo } from "./StepShipping";
 import { DeliveryInfo } from "./StepDelivery";
 import { PaymentInfo } from "./StepPayment";
+import { VATInfo } from "./StepVAT";
 import { CartItem } from "@/types/database";
+import { calculateVat } from "@/lib/vatUtils";
 
 interface Props {
   shipping: ShippingInfo;
   delivery: DeliveryInfo;
   payment: PaymentInfo;
+  vatInfo?: VATInfo;
   cartItems: CartItem[];
   cartTotal: number;
   onPlace: () => Promise<void>;
@@ -18,39 +20,75 @@ interface Props {
   isSubmitting: boolean;
 }
 
-export const StepReview = ({ shipping, delivery, payment, cartItems, cartTotal, onPlace, onBack, isSubmitting }: Props) => {
-  const tax = cartTotal * 0.16;
-  const grandTotal = cartTotal + delivery.fee + tax;
-
+export const StepReview = ({
+  shipping, delivery, payment, vatInfo, cartItems, cartTotal, onPlace, onBack, isSubmitting,
+}: Props) => {
+  const vatCalc = calculateVat(cartTotal);
+  const vatAmount = vatInfo?.enabled ? vatCalc.vatAmount : 0;
+  const grandTotal = cartTotal + delivery.fee + vatAmount;
   const fmt = (n: number) => `Kshs ${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-bold text-gray-900">4. Review & Place Order</h2>
+      <h2 className="text-lg font-bold text-gray-900">Review &amp; Place Order</h2>
 
       {/* Shipping Summary */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
-        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3">Shipping To</h3>
+        <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3">
+          {delivery.isPickupOrder ? "Contact Details" : "Shipping To"}
+        </h3>
         <div className="text-sm text-gray-900 space-y-1">
           <p className="font-semibold">{shipping.fullName}</p>
-          <p>{shipping.address}, {shipping.town}, {shipping.county}</p>
+          {!delivery.isPickupOrder && (
+            <p>{shipping.address}, {shipping.town}, {shipping.county}</p>
+          )}
           <p className="text-gray-500">{shipping.phone} · {shipping.email}</p>
           {shipping.notes && <p className="text-gray-500 italic">"{shipping.notes}"</p>}
         </div>
       </div>
 
-      {/* Delivery + Payment Summary */}
+      {/* Delivery / Pickup card */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Delivery</h3>
-          <p className="font-semibold text-gray-900 text-sm capitalize">{delivery.method} Delivery</p>
-          <p className="text-sm text-gray-600">{fmt(delivery.fee)}</p>
-        </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+        {/* Delivery method */}
+        {delivery.isPickupOrder ? (
+          <div className="col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Store className="h-3.5 w-3.5" /> In-Store Pickup
+            </h3>
+            <p className="font-semibold text-gray-900 text-sm">{delivery.pickupBranchName}</p>
+            <p className="text-xs text-[#FF5722] font-medium mt-1">⏱ {delivery.pickupEstimate}</p>
+            <p className="text-xs text-green-600 font-bold mt-1">FREE — No delivery charge</p>
+            <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+              You will receive an <strong>order confirmation code</strong> via SMS/email. Bring it when collecting your items.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Delivery</h3>
+            <p className="font-semibold text-gray-900 text-sm capitalize">{delivery.method} Delivery</p>
+            <p className="text-sm text-gray-600">{fmt(delivery.fee)}</p>
+          </div>
+        )}
+
+        {/* Payment */}
+        <div className={`bg-gray-50 border border-gray-200 rounded-xl p-4 ${delivery.isPickupOrder ? "" : ""}`}>
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Payment</h3>
           <p className="font-semibold text-gray-900 text-sm">M-Pesa ✓</p>
           <p className="text-xs text-gray-500 font-mono">{payment.mpesaCode}</p>
         </div>
+
+        {/* eTIMS receipt — full width when VAT enabled */}
+        {vatInfo?.enabled && (
+          <div className="col-span-2 bg-[#FF5722]/5 border border-[#FF5722]/20 rounded-xl p-4 flex items-start gap-3">
+            <Receipt className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-xs font-bold text-[#FF5722] uppercase tracking-wider mb-1">eTIMS Receipt</h3>
+              <p className="text-sm text-gray-700 font-medium">{vatInfo.taxName}</p>
+              <p className="text-xs text-gray-500 font-mono">{vatInfo.kraPin}</p>
+              <p className="text-xs text-gray-400 mt-1">VAT receipt will be emailed after order placement.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Items */}
@@ -70,7 +108,9 @@ export const StepReview = ({ shipping, delivery, payment, cartItems, cartTotal, 
                 <p className="text-sm font-semibold text-gray-900 line-clamp-1">{item.product?.name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">Qty: {item.quantity}</p>
               </div>
-              <p className="font-bold text-gray-900 text-sm flex-shrink-0">{fmt((item.product?.price || 0) * item.quantity)}</p>
+              <p className="font-bold text-gray-900 text-sm flex-shrink-0">
+                {fmt((item.product?.price || 0) * item.quantity)}
+              </p>
             </div>
           ))}
         </div>
@@ -78,23 +118,43 @@ export const StepReview = ({ shipping, delivery, payment, cartItems, cartTotal, 
 
       {/* Totals */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
-        <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span className="font-semibold">{fmt(cartTotal)}</span></div>
-        <div className="flex justify-between text-sm"><span className="text-gray-600">Shipping</span><span className="font-semibold">{fmt(delivery.fee)}</span></div>
-        <div className="flex justify-between text-sm"><span className="text-gray-600">Tax (16%)</span><span className="font-semibold">{fmt(tax)}</span></div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Subtotal</span>
+          <span className="font-semibold">{fmt(cartTotal)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">
+            {delivery.isPickupOrder ? "In-Store Pickup" : "Shipping"}
+          </span>
+          <span className={`font-semibold ${delivery.isPickupOrder ? "text-green-600" : ""}`}>
+            {delivery.isPickupOrder ? "FREE" : fmt(delivery.fee)}
+          </span>
+        </div>
+        {vatInfo?.enabled && (
+          <div className="flex justify-between text-sm text-[#FF5722]">
+            <span>VAT (16%)</span>
+            <span className="font-semibold">+ {fmt(vatAmount)}</span>
+          </div>
+        )}
         <Separator className="bg-gray-200" />
         <div className="flex justify-between text-base font-extrabold text-gray-900">
-          <span>Total</span><span>{fmt(grandTotal)}</span>
+          <span>Total{vatInfo?.enabled ? " (incl. VAT)" : ""}</span>
+          <span>{fmt(grandTotal)}</span>
         </div>
       </div>
 
       <div className="flex justify-between pt-2">
-        <Button variant="outline" onClick={onBack} disabled={isSubmitting} className="px-6 h-11 border-gray-300 font-semibold">← Back</Button>
+        <Button variant="outline" onClick={onBack} disabled={isSubmitting} className="px-6 h-11 border-gray-300 font-semibold">
+          ← Back
+        </Button>
         <Button
           onClick={onPlace}
           disabled={isSubmitting}
           className="bg-[#FF5722] hover:bg-[#e64a19] text-white font-bold px-8 h-11"
         >
-          {isSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Placing Order…</> : <><Lock className="h-4 w-4 mr-2" />Place Order</>}
+          {isSubmitting
+            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Placing Order…</>
+            : <><Lock className="h-4 w-4 mr-2" />Place Order</>}
         </Button>
       </div>
     </div>

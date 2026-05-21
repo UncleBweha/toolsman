@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import WhatsAppOrderButton from "@/components/product/WhatsAppOrderButton";
+import ProductTags from "@/components/product/ProductTags";
+import RelatedProducts from "@/components/product/RelatedProducts";
+import ProductShareButton from "@/components/product/ProductShareButton";
 import { SITE } from "@/lib/config";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -167,43 +170,7 @@ const Product = () => {
   const estimatedDelivery =
     deliveryLocation.toLowerCase() === "nairobi" ? "1–2 business days" : "2–5 business days";
 
-  // Inject OG / Twitter meta tags for social sharing & WhatsApp previews
-  // MUST be before any early returns to respect Rules of Hooks
-  useEffect(() => {
-    if (!product) return;
-    const plainDesc = (product.description || "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 160);
-    const url = `${SITE.url}/product/${product.slug}`;
-    const image = product.image_url || (product.images && product.images[0]) || "";
-    const title = `${product.name} | ${SITE.name}`;
-
-    const setMeta = (selector: string, attr: string, value: string) => {
-      let el = document.head.querySelector<HTMLMetaElement>(selector);
-      if (!el) {
-        el = document.createElement("meta");
-        const [k, v] = selector.replace(/^meta\[/, "").replace(/\]$/, "").split("=");
-        el.setAttribute(k, v.replace(/['"]/g, ""));
-        document.head.appendChild(el);
-      }
-      el.setAttribute(attr, value);
-    };
-
-    document.title = title;
-    setMeta('meta[name="description"]', "content", plainDesc);
-    setMeta('meta[property="og:title"]', "content", title);
-    setMeta('meta[property="og:description"]', "content", plainDesc);
-    setMeta('meta[property="og:image"]', "content", image);
-    setMeta('meta[property="og:url"]', "content", url);
-    setMeta('meta[property="og:type"]', "content", "product");
-    setMeta('meta[property="og:site_name"]', "content", SITE.name);
-    setMeta('meta[name="twitter:card"]', "content", "summary_large_image");
-    setMeta('meta[name="twitter:title"]', "content", title);
-    setMeta('meta[name="twitter:description"]', "content", plainDesc);
-    setMeta('meta[name="twitter:image"]', "content", image);
-  }, [product]);
+  // (duplicate useEffect removed — meta tags are set in the first useEffect above)
 
   const cleanDescription = product?.description
     ? DOMPurify.sanitize(product.description)
@@ -472,9 +439,26 @@ const Product = () => {
               url={`${SITE.url}/product/${product.slug}`}
             />
 
-            <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#FF5722] font-medium transition-colors pt-1">
-              <Heart className="h-4 w-4" /> Add to Wishlist
-            </button>
+            <div className="flex items-center gap-4 pt-1 flex-wrap">
+              <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#FF5722] font-medium transition-colors">
+                <Heart className="h-4 w-4" /> Add to Wishlist
+              </button>
+              <ProductShareButton
+                productName={product.name}
+                productSlug={product.slug}
+                price={formatPrice(product.price)}
+                description={product.description || ""}
+              />
+            </div>
+
+            {/* Product Tags */}
+            {((product.tags && product.tags.length > 0) || (product.generated_tags && product.generated_tags.length > 0)) && (
+              <ProductTags
+                tags={product.tags}
+                generatedTags={product.generated_tags}
+                className="pt-1"
+              />
+            )}
 
 
             <div className="grid grid-cols-3 gap-2 pt-5 mt-5 border-t border-gray-100">
@@ -653,6 +637,15 @@ const Product = () => {
 
           </Tabs>
         </div>
+
+        {/* Related Products */}
+        <RelatedProducts
+          currentProductId={product.id}
+          tags={product.tags}
+          generatedTags={product.generated_tags}
+          categoryId={product.category_id}
+          productName={product.name}
+        />
       </main>
       <Footer />
     </div>

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Product, Category } from "@/types/database";
+import { extractProductTags } from "@/lib/tagExtractor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +42,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, FolderOpen, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, FolderOpen, Search, ChevronLeft, ChevronRight, RefreshCw, Tag, X } from "lucide-react";
 
 interface ProductFormData {
   name: string;
@@ -56,7 +57,8 @@ interface ProductFormData {
   image_url: string;
   images: string[];
   brand: string;
-  tags: string;
+  tags: string;             // manual tags (comma-separated string)
+  generated_tags: string[]; // auto-generated NLP tags (array)
   key_features: string;
   status: string;
   is_featured: boolean;
@@ -77,6 +79,7 @@ const emptyFormData: ProductFormData = {
   images: [],
   brand: "",
   tags: "",
+  generated_tags: [],
   key_features: "",
   status: "active",
   is_featured: false,
@@ -213,12 +216,32 @@ const ProductManagement = () => {
     }
   };
 
+  const autoGenerateTags = useCallback((name: string, description: string, manualTags: string[] = []) => {
+    const generated = extractProductTags(name, description, manualTags);
+    setFormData((prev) => ({ ...prev, generated_tags: generated }));
+  }, []);
+
   const handleNameChange = (name: string) => {
-    setFormData({
-      ...formData,
-      name,
-      slug: generateSlug(name),
+    setFormData((prev) => {
+      const manualTags = prev.tags.split(",").map((t) => t.trim()).filter(Boolean);
+      const generated = extractProductTags(name, prev.description, manualTags);
+      return { ...prev, name, slug: generateSlug(name), generated_tags: generated };
     });
+  };
+
+  const handleDescriptionChange = (value: string) => {
+    setFormData((prev) => {
+      const manualTags = prev.tags.split(",").map((t) => t.trim()).filter(Boolean);
+      const generated = extractProductTags(prev.name, value, manualTags);
+      return { ...prev, description: value, generated_tags: generated };
+    });
+  };
+
+  const removeGeneratedTag = (tag: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      generated_tags: prev.generated_tags.filter((t) => t !== tag),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -283,6 +306,7 @@ const ProductManagement = () => {
       images: formData.images.filter(Boolean),
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
+      generated_tags: formData.generated_tags.filter(Boolean),
       key_features: formData.key_features
         ? formData.key_features.split("\n").map(f => f.trim()).filter(Boolean)
         : [],
@@ -322,9 +346,14 @@ const ProductManagement = () => {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    // Determine if the product's category is a subcategory
     const cat = categories.find(c => c.id === product.category_id);
     const isSubcat = cat?.parent_id != null;
+    const existingManualTags = product.tags || [];
+    // Use stored generated tags, or auto-generate if none exist yet
+    const existingGenerated = (product.generated_tags && product.generated_tags.length > 0)
+      ? product.generated_tags
+      : extractProductTags(product.name, product.description || "", existingManualTags);
+
     setFormData({
       name: product.name,
       slug: product.slug,
@@ -338,7 +367,8 @@ const ProductManagement = () => {
       image_url: product.image_url || "",
       images: product.images || [],
       brand: product.brand || "",
-      tags: (product.tags || []).join(", "),
+      tags: existingManualTags.join(", "),
+      generated_tags: existingGenerated,
       key_features: (product.key_features || []).join("\n"),
       status: product.status || "active",
       is_featured: product.is_featured,
@@ -625,7 +655,7 @@ const ProductManagement = () => {
                 <Label htmlFor="description">Description</Label>
                 <RichTextEditor
                   value={formData.description}
-                  onChange={(value) => setFormData({ ...formData, description: value })}
+                  onChange={handleDescriptionChange}
                 />
               </div>
 
@@ -811,15 +841,57 @@ const ProductManagement = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="tags">Tags</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="tags">Manual Tags</Label>
+                  <button
+                    type="button"
+                    onClick={() => autoGenerateTags(
+                      formData.name,
+                      formData.description,
+                      formData.tags.split(",").map(t => t.trim()).filter(Boolean)
+                    )}
+                    className="flex items-center gap-1 text-xs text-[#FF5722] hover:underline"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Re-generate auto-tags
+                  </button>
+                </div>
                 <Input
                   id="tags"
                   value={formData.tags}
                   onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                   placeholder="power tool, cordless, drill (comma-separated)"
                 />
-                <p className="text-xs text-muted-foreground">Separate tags with commas</p>
+                <p className="text-xs text-muted-foreground">Separate tags with commas. Auto-tags are generated from name &amp; description.</p>
               </div>
+
+              {/* Auto-generated tags */}
+              {formData.generated_tags.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-sm">
+                    <Tag className="h-3.5 w-3.5 text-[#FF5722]" />
+                    Auto-generated Tags
+                    <span className="text-xs font-normal text-muted-foreground ml-1">(click × to remove)</span>
+                  </Label>
+                  <div className="flex flex-wrap gap-1.5 p-2.5 border rounded-md bg-gray-50/50 min-h-[40px]">
+                    {formData.generated_tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#FF5722]/10 text-[#FF5722] border border-[#FF5722]/20"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => removeGeneratedTag(tag)}
+                          className="hover:text-red-600 transition-colors ml-0.5"
+                          aria-label={`Remove tag ${tag}`}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="key_features">Key Features</Label>

@@ -37,10 +37,13 @@ export interface Product {
   images: string[];
   brand?: string | null;
   tags?: string[];
+  generated_tags?: string[];   // auto-extracted NLP tags
   key_features?: string[];
   status?: 'active' | 'draft' | 'out_of_stock';
   is_featured: boolean;
   is_active: boolean;
+  seo_title?: string | null;
+  seo_description?: string | null;
   created_at: string;
   updated_at: string;
   category?: Category;
@@ -67,6 +70,13 @@ export interface Order {
   shipping_address: unknown;
   billing_address: unknown;
   notes: string | null;
+  // VAT / eTIMS fields
+  vat_enabled?: boolean;
+  vat_amount?: number;
+  kra_pin?: string | null;
+  tax_name?: string | null;
+  etims_invoice_number?: string | null;
+  receipt_status?: 'pending' | 'generated' | 'sent' | 'failed';
   created_at: string;
   updated_at: string;
 }
