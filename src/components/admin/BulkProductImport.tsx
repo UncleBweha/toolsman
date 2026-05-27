@@ -14,6 +14,13 @@ import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { generateProductImportTemplate, parseExcelFile, CategoryWithSubcategories } from "@/lib/excelTemplateGenerator";
+import { 
+  fetchCategoriesWithSubcategories, 
+  getCategoryIdByName, 
+  getSubcategoryIdByName,
+  validateImportedCategories 
+} from "@/lib/categoryService";
 
 interface ImportProduct {
   name: string;
@@ -24,6 +31,9 @@ interface ImportProduct {
   sku?: string;
   stock_quantity?: number;
   category?: string;
+  sub_category?: string;
+  category_id?: string | null;
+  sub_category_id?: string | null;
   image_url?: string;
   brand?: string;
   tags?: string;
@@ -33,6 +43,7 @@ interface ImportProduct {
   is_active?: boolean;
   status?: "pending" | "success" | "error" | "duplicate";
   error?: string;
+  rowIndex?: number;
 }
 
 const BulkProductImport = () => {
@@ -77,14 +88,14 @@ const BulkProductImport = () => {
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          complete: (results) => {
+          complete: async (results) => {
             console.log("CSV parse complete:", results.data.length, "rows");
             if (results.data.length === 0) {
               toast.error("The file appears to be empty");
               setIsParsing(false);
               return;
             }
-            processData(results.data as Record<string, string>[], cats);
+            await processData(results.data as Record<string, string>[], cats);
             setIsParsing(false);
           },
           error: (error) => {
@@ -94,54 +105,21 @@ const BulkProductImport = () => {
           },
         });
       } else if (extension === "xlsx" || extension === "xls") {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const data = e.target?.result;
-            if (!data) {
-              toast.error("Failed to read file data");
-              setIsParsing(false);
-              return;
-            }
-            console.log("File read complete, parsing workbook...");
-            const workbook = XLSX.read(data, { type: "array" });
-            console.log("Workbook sheets:", workbook.SheetNames);
-            
-            if (workbook.SheetNames.length === 0) {
-              toast.error("No sheets found in the Excel file");
-              setIsParsing(false);
-              return;
-            }
-            
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet) as Record<string, string>[];
-            console.log("Excel parse complete:", jsonData.length, "rows");
-            
-            if (jsonData.length === 0) {
-              toast.error("No data found in the Excel file. Make sure the first row contains headers.");
-              setIsParsing(false);
-              return;
-            }
-            
-            if (jsonData.length > 0) {
-              console.log("First row sample:", JSON.stringify(jsonData[0]));
-              console.log("Column headers:", Object.keys(jsonData[0]));
-            }
-            processData(jsonData, cats);
-            setIsParsing(false);
-          } catch (parseError) {
-            console.error("Excel parse error:", parseError);
-            toast.error("Failed to parse Excel file: " + (parseError instanceof Error ? parseError.message : "Unknown error"));
-            setIsParsing(false);
+        try {
+          const jsonData = await parseExcelFile(file);
+          console.log("Excel parse complete:", jsonData.length, "rows");
+          
+          if (jsonData.length > 0) {
+            console.log("First row sample:", JSON.stringify(jsonData[0]));
+            console.log("Column headers:", Object.keys(jsonData[0]));
           }
-        };
-        reader.onerror = (error) => {
-          console.error("File read error:", error);
-          toast.error("Failed to read Excel file");
+          await processData(jsonData, cats);
           setIsParsing(false);
-        };
-        reader.readAsArrayBuffer(file);
+        } catch (parseError) {
+          console.error("Excel parse error:", parseError);
+          toast.error("Failed to parse Excel file: " + (parseError instanceof Error ? parseError.message : "Unknown error"));
+          setIsParsing(false);
+        }
       } else {
         toast.error("Unsupported file format. Please use CSV or Excel files (.csv, .xlsx, .xls)");
         setIsParsing(false);
@@ -153,13 +131,45 @@ const BulkProductImport = () => {
     }
   };
 
-  const processData = (data: Record<string, string>[], cats: Category[]) => {
+  const processData = async (data: Record<string, string>[], cats: Category[]) => {
     const categoryMap = new Map(cats.map((c) => [c.name.toLowerCase(), c.id]));
 
-    const processed: ImportProduct[] = data.map((row) => {
+    // Prepare rows for validation
+    const rowsToValidate = data.map((row, idx) => ({
+      category: row.category || row.Category || row.CATEGORY || "",
+      sub_category: row.sub_category || row.SubCategory || row.sub_Category || row["Sub Category"] || "",
+      rowIndex: idx + 2, // +2 because Excel row numbering starts at 1 and headers are row 1
+    }));
+
+    // Validate categories and subcategories
+    const validationResults = await validateImportedCategories(rowsToValidate);
+
+    // Create validation map for quick lookup
+    const validationMap = new Map(validationResults.map(r => [r.rowIndex, r]));
+
+    const processed: ImportProduct[] = data.map((row, idx) => {
       const name = row.name || row.Name || row.NAME || "";
       const categoryName = row.category || row.Category || row.CATEGORY || "";
-      const categoryId = categoryMap.get(categoryName.toLowerCase());
+      const subCategoryName = row.sub_category || row.SubCategory || row.sub_Category || row["Sub Category"] || "";
+      const rowIndex = idx + 2;
+
+      // Get validation result
+      const validation = validationMap.get(rowIndex);
+      let categoryId: string | null = null;
+      let subCategoryId: string | null = null;
+      let validationError = "";
+
+      if (validation && !validation.valid) {
+        validationError = validation.errors.join("; ");
+      } else if (validation) {
+        categoryId = validation.categoryId || null;
+        subCategoryId = validation.subcategoryId || null;
+      }
+
+      // Fallback to old category lookup for backward compatibility
+      if (!categoryId && categoryName) {
+        categoryId = categoryMap.get(categoryName.toLowerCase()) || null;
+      }
 
       return {
         name,
@@ -169,7 +179,10 @@ const BulkProductImport = () => {
         original_price: row.original_price || row.OriginalPrice ? parseInt(row.original_price || row.OriginalPrice) : null,
         sku: row.sku || row.SKU || "",
         stock_quantity: parseInt(row.stock_quantity || row.Stock || row.stock || "0") || 0,
-        category: categoryId,
+        category: categoryName,
+        sub_category: subCategoryName,
+        category_id: categoryId,
+        sub_category_id: subCategoryId,
         image_url: row.image_url || row.ImageUrl || row.image || "",
         brand: row.brand || row.Brand || "",
         tags: row.tags || row.Tags || "",
@@ -177,7 +190,9 @@ const BulkProductImport = () => {
         product_status: row.status || row.Status || "active",
         is_featured: (row.is_featured || row.Featured || "").toLowerCase() === "true",
         is_active: (row.is_active || row.Active || "true").toLowerCase() !== "false",
-        status: "pending" as const,
+        status: validationError ? "error" : ("pending" as const),
+        error: validationError || undefined,
+        rowIndex: rowIndex,
       };
     });
 
@@ -253,7 +268,16 @@ const BulkProductImport = () => {
 
       if (!product.name || product.price <= 0) {
         updatedProducts[i] = { ...product, status: "error", error: "Name and valid price are required" };
-        errors.push({ row: i + 1, message: "Name and valid price are required" });
+        errors.push({ row: product.rowIndex || i + 1, message: "Name and valid price are required" });
+        setProducts([...updatedProducts]);
+        setImportProgress(((i + 1) / products.length) * 100);
+        continue;
+      }
+
+      // Check for validation errors from parsing
+      if (product.error) {
+        updatedProducts[i] = { ...product, status: "error" };
+        errors.push({ row: product.rowIndex || i + 1, message: product.error });
         setProducts([...updatedProducts]);
         setImportProgress(((i + 1) / products.length) * 100);
         continue;
@@ -262,17 +286,57 @@ const BulkProductImport = () => {
       // Duplicate detection by SKU or name
       if (product.sku && existingSkus.has(product.sku.toLowerCase())) {
         updatedProducts[i] = { ...product, status: "duplicate", error: `Duplicate SKU: ${product.sku}` };
-        errors.push({ row: i + 1, message: `Duplicate SKU: ${product.sku}` });
+        errors.push({ row: product.rowIndex || i + 1, message: `Duplicate SKU: ${product.sku}` });
         setProducts([...updatedProducts]);
         setImportProgress(((i + 1) / products.length) * 100);
         continue;
       }
       if (existingNames.has(product.name.toLowerCase())) {
         updatedProducts[i] = { ...product, status: "duplicate", error: `Duplicate name: ${product.name}` };
-        errors.push({ row: i + 1, message: `Duplicate name: ${product.name}` });
+        errors.push({ row: product.rowIndex || i + 1, message: `Duplicate name: ${product.name}` });
         setProducts([...updatedProducts]);
         setImportProgress(((i + 1) / products.length) * 100);
         continue;
+      }
+
+      // Resolve category if using name-based lookup
+      let categoryId = product.category_id;
+      if (!categoryId && product.category) {
+        categoryId = await getCategoryIdByName(product.category);
+        if (!categoryId) {
+          updatedProducts[i] = { 
+            ...product, 
+            status: "error", 
+            error: `Category "${product.category}" not found` 
+          };
+          errors.push({ 
+            row: product.rowIndex || i + 1, 
+            message: `Category "${product.category}" not found` 
+          });
+          setProducts([...updatedProducts]);
+          setImportProgress(((i + 1) / products.length) * 100);
+          continue;
+        }
+      }
+
+      // Resolve subcategory if using name-based lookup
+      let subcategoryId = product.sub_category_id;
+      if (!subcategoryId && product.sub_category && categoryId) {
+        subcategoryId = await getSubcategoryIdByName(product.sub_category, categoryId);
+        if (!subcategoryId) {
+          updatedProducts[i] = { 
+            ...product, 
+            status: "error", 
+            error: `Subcategory "${product.sub_category}" not found for this category` 
+          };
+          errors.push({ 
+            row: product.rowIndex || i + 1, 
+            message: `Subcategory "${product.sub_category}" not found for this category` 
+          });
+          setProducts([...updatedProducts]);
+          setImportProgress(((i + 1) / products.length) * 100);
+          continue;
+        }
       }
 
       const { data: inserted, error } = await supabase.from("products").insert({
@@ -283,7 +347,7 @@ const BulkProductImport = () => {
         original_price: product.original_price || null,
         sku: product.sku || null,
         stock_quantity: product.stock_quantity || 0,
-        category_id: product.category || null,
+        category_id: categoryId || null,
         image_url: product.image_url || null,
         brand: product.brand || null,
         tags: product.tags ? product.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
@@ -295,7 +359,7 @@ const BulkProductImport = () => {
 
       if (error) {
         updatedProducts[i] = { ...product, status: "error", error: error.message };
-        errors.push({ row: i + 1, message: error.message });
+        errors.push({ row: product.rowIndex || i + 1, message: error.message });
       } else {
         updatedProducts[i] = { ...product, status: "success" };
         if (inserted?.id) importedIds.push(inserted.id);
@@ -337,27 +401,22 @@ const BulkProductImport = () => {
     }
   };
 
-  const downloadTemplate = () => {
-    const template = [
-      {
-        name: "Example Product",
-        description: "Product description here",
-        price: "9999",
-        original_price: "12999",
-        sku: "SKU-001",
-        stock_quantity: "100",
-        category: "Power Tools",
-        brand: "DeWalt",
-        tags: "drill, cordless, power tool",
-        key_features: "20V Battery, Variable Speed, LED Light",
-        image_url: "https://example.com/image.jpg",
-      },
-    ];
+  const downloadTemplate = async () => {
+    try {
+      toast.loading("Generating template...");
+      const categoriesWithSubs = await fetchCategoriesWithSubcategories();
+      
+      if (categoriesWithSubs.length === 0) {
+        toast.error("No categories available. Please create categories first.");
+        return;
+      }
 
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Products");
-    XLSX.writeFile(wb, "product_import_template.xlsx");
+      await generateProductImportTemplate(categoriesWithSubs);
+      toast.success("Template downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating template:", error);
+      toast.error("Failed to generate template: " + (error instanceof Error ? error.message : "Unknown error"));
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -522,11 +581,13 @@ const BulkProductImport = () => {
         <h3 className="font-semibold mb-3">Import Guidelines</h3>
         <ul className="text-sm text-muted-foreground space-y-2">
           <li>• <strong>Required fields:</strong> name, price (in Kshs)</li>
-          <li>• <strong>Optional fields:</strong> description, original_price, sku, stock_quantity, category, brand, tags, key_features, image_url</li>
+          <li>• <strong>Optional fields:</strong> description, original_price, sku, stock_quantity, category, sub_category, brand, tags, key_features, image_url</li>
           <li>• <strong>Price format:</strong> Enter prices in Kshs (e.g., 9999 for Kshs 9,999)</li>
-          <li>• <strong>Category:</strong> Must match an existing category name exactly</li>
+          <li>• <strong>Category & Sub Category:</strong> Use dropdowns in the template - they automatically populate from your website</li>
+          <li>• <strong>Sub Category:</strong> Will automatically filter based on selected category</li>
           <li>• <strong>Tags:</strong> Comma-separated (e.g., "drill, cordless, power tool")</li>
           <li>• <strong>Key features:</strong> Comma-separated (e.g., "20V Battery, Variable Speed")</li>
+          <li>• <strong>Backward compatibility:</strong> Old imports without sub_category column will still work</li>
         </ul>
       </div>
     </div>
