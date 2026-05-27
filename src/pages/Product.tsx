@@ -569,12 +569,14 @@ const Product = () => {
               >
                 Description
               </TabsTrigger>
-              <TabsTrigger
-                value="features"
-                className="data-[state=active]:border-b-2 data-[state=active]:border-[#FF5722] data-[state=active]:text-[#FF5722] data-[state=active]:shadow-none rounded-none bg-transparent font-semibold text-xs md:text-sm text-gray-500 py-5 px-1 h-full uppercase tracking-wider whitespace-nowrap"
-              >
-                Key Features
-              </TabsTrigger>
+              {product.key_features && product.key_features.filter(Boolean).length > 0 && (
+                <TabsTrigger
+                  value="features"
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-[#FF5722] data-[state=active]:text-[#FF5722] data-[state=active]:shadow-none rounded-none bg-transparent font-semibold text-xs md:text-sm text-gray-500 py-5 px-1 h-full uppercase tracking-wider whitespace-nowrap"
+                >
+                  Key Features
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value="description" className="p-6 md:p-8 m-0">
               {cleanDescription ? (
@@ -586,54 +588,18 @@ const Product = () => {
                 <p className="text-gray-500 text-sm">No description available for this product.</p>
               )}
             </TabsContent>
-            <TabsContent value="features" className="p-6 md:p-8 m-0">
-              {(() => {
-                // Priority 1: Use key_features from DB if available
-                const dbFeatures = (product.key_features && Array.isArray(product.key_features) && product.key_features.length > 0)
-                  ? product.key_features.filter(Boolean)
-                  : [];
-
-                let features: string[] = dbFeatures;
-
-                // Priority 2: Extract from description HTML if no DB features
-                if (features.length === 0) {
-                  const html = product.description || "";
-                  const liMatches = Array.from(html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))
-                    .map((m) => m[1].replace(/<[^>]+>/g, "").trim())
-                    .filter(Boolean);
-                  if (liMatches.length) features = liMatches.slice(0, 6);
-                  else {
-                    const plain = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-                    features = plain
-                      .split(/(?<=[.!?])\s+/)
-                      .map((s) => s.trim())
-                      .filter((s) => s.length > 12 && s.length < 220)
-                      .slice(0, 5);
-                  }
-                }
-
-                const meta = [
-                  product.brand && `Brand: ${product.brand}`,
-                  product.category?.name && `Category: ${product.category.name}`,
-                  product.sku && `SKU: ${product.sku}`,
-                  product.stock_quantity !== null && product.stock_quantity > 0 && "In stock and ready to ship",
-                ].filter(Boolean) as string[];
-                const all = [...features, ...meta];
-                if (!all.length) {
-                  return <p className="text-gray-500 text-sm">No features listed for this product.</p>;
-                }
-                return (
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
-                    {all.map((line, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
-                        <span>{line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
-            </TabsContent>
+            {product.key_features && product.key_features.filter(Boolean).length > 0 && (
+              <TabsContent value="features" className="p-6 md:p-8 m-0">
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+                  {product.key_features.filter(Boolean).map((line, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </TabsContent>
+            )}
 
           </Tabs>
         </div>

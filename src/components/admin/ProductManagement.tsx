@@ -290,7 +290,6 @@ const ProductManagement = () => {
       images: formData.images.filter(Boolean),
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
-      generated_tags: formData.generated_tags.filter(Boolean),
       key_features: formData.key_features
         ? formData.key_features.split("\n").map(f => f.trim()).filter(Boolean)
         : [],

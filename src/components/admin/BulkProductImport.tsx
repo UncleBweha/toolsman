@@ -35,6 +35,7 @@ interface ImportProduct {
   category_id?: string | null;
   sub_category_id?: string | null;
   image_url?: string;
+  images?: string[];
   brand?: string;
   tags?: string;
   key_features?: string;
@@ -184,6 +185,13 @@ const BulkProductImport = () => {
         category_id: categoryId,
         sub_category_id: subCategoryId,
         image_url: row.image_url || row.ImageUrl || row.image || "",
+        // Collect extra image columns (image_url_2 … image_url_5) into the images array
+        images: [
+          row.image_url_2 || row.ImageUrl2 || "",
+          row.image_url_3 || row.ImageUrl3 || "",
+          row.image_url_4 || row.ImageUrl4 || "",
+          row.image_url_5 || row.ImageUrl5 || "",
+        ].filter(Boolean),
         brand: row.brand || row.Brand || "",
         tags: row.tags || row.Tags || "",
         key_features: row.key_features || row.KeyFeatures || row.features || "",
@@ -349,6 +357,7 @@ const BulkProductImport = () => {
         stock_quantity: product.stock_quantity || 0,
         category_id: categoryId || null,
         image_url: product.image_url || null,
+        images: (product.images || []).filter(Boolean),
         brand: product.brand || null,
         tags: product.tags ? product.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
         key_features: product.key_features ? product.key_features.split(",").map(f => f.trim()).filter(Boolean) : [],

@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import * as XLSX from "xlsx";
 
 export interface CategoryWithSubcategories {
@@ -12,221 +13,192 @@ export interface CategoryWithSubcategories {
 }
 
 /**
- * Sanitizes a category name to be used as an Excel named range
- * Removes spaces, special characters that are invalid in named ranges
+ * Sanitizes a category name to be safe as an Excel named range.
+ * Named ranges: start with letter/underscore, only letters/digits/underscores.
  */
 function sanitizeNamedRangeName(name: string): string {
-  return name
-    .replace(/\s+/g, "_") // Replace spaces with underscores
-    .replace(/[^a-zA-Z0-9_]/g, "") // Remove special characters
-    .substring(0, 31); // Excel named range limit
+  const sanitized = name
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .substring(0, 31);
+  return /^\d/.test(sanitized) ? `_${sanitized}` : sanitized;
 }
 
 /**
- * Creates a hidden sheet with dropdown data
- * Structure: Column A = Categories, Columns B+ = Subcategories for each category
+ * Converts a 0-based column index to an Excel column letter string.
+ * Handles multi-letter columns: 0→A, 25→Z, 26→AA, …
  */
-function createDropdownDataSheet(
-  categories: CategoryWithSubcategories[]
-): XLSX.WorkSheet {
-  const dropdownData: any[][] = [];
-  const headers = ["Category", ...categories.map((c) => sanitizeNamedRangeName(c.name))];
-
-  // Find max subcategories to determine row count
-  const maxSubcategories = Math.max(
-    ...categories.map((c) => c.subcategories.length),
-    1
-  );
-
-  // Create rows with categories and their subcategories
-  for (let i = 0; i < maxSubcategories; i++) {
-    const row: any[] = [];
-
-    // First column: category names (only in first row per category)
-    if (i === 0) {
-      row.push(categories.map((c) => c.name).join("\n")); // Placeholder, will be overwritten
-    } else {
-      row.push("");
-    }
-
-    // Subsequent columns: subcategories for each category
-    for (const category of categories) {
-      const subcategory = category.subcategories[i];
-      row.push(subcategory ? subcategory.name : "");
-    }
-
-    dropdownData.push(row);
+function colIndexToLetter(idx: number): string {
+  let letter = "";
+  let n = idx;
+  while (n >= 0) {
+    letter = String.fromCharCode((n % 26) + 65) + letter;
+    n = Math.floor(n / 26) - 1;
   }
-
-  // Create the actual structure: one column per category with its subcategories
-  const sheet: any = {};
-  let colIndex = 0;
-
-  // Column A: All category names (for category dropdown)
-  const categoryNames = categories.map((c) => c.name);
-  categoryNames.forEach((name, idx) => {
-    const cellRef = XLSX.utils.encode_cell({ r: idx, c: 0 });
-    sheet[cellRef] = { t: "s", v: name };
-  });
-
-  // Columns B+: Subcategories for each category
-  categories.forEach((category, catIndex) => {
-    const colIdx = catIndex + 1;
-    category.subcategories.forEach((subcategory, subIdx) => {
-      const cellRef = XLSX.utils.encode_cell({ r: subIdx, c: colIdx });
-      sheet[cellRef] = { t: "s", v: subcategory.name };
-    });
-  });
-
-  // Set worksheet dimensions
-  sheet["!ref"] = XLSX.utils.encode_range({
-    s: { r: 0, c: 0 },
-    e: {
-      r: maxSubcategories - 1,
-      c: categories.length,
-    },
-  });
-
-  return sheet;
+  return letter;
 }
 
 /**
- * Generates a product import template with dependent category/subcategory dropdowns
+ * Generates a product import Excel template with real working
+ * category / sub-category dropdowns.
+ *
+ * Uses ExcelJS (which has first-class data-validation support) for template
+ * creation, and keeps the existing xlsx library for parsing uploaded files.
+ *
+ * Dropdown mechanism:
+ *  - A hidden "DropdownData" sheet holds all category names in column A
+ *    and each category's subcategories in subsequent columns (B, C, …).
+ *  - Named ranges tie each column to the category it belongs to.
+ *  - Column G (category) gets a dropdown sourced from the "Categories" range.
+ *  - Column H (sub-category) uses INDIRECT(SUBSTITUTE(Gn," ","_")) so it
+ *    dynamically filters to the subcategories of whatever category was chosen.
  */
 export async function generateProductImportTemplate(
   categories: CategoryWithSubcategories[]
 ): Promise<void> {
-  // Create main products sheet with sample data
-  const template = [
-    {
-      name: "Example Product",
-      description: "Product description here",
-      price: "9999",
-      original_price: "12999",
-      sku: "SKU-001",
-      stock_quantity: "100",
-      category: categories.length > 0 ? categories[0].name : "Select Category",
-      sub_category:
-        categories.length > 0 && categories[0].subcategories.length > 0
-          ? categories[0].subcategories[0].name
-          : "Select Sub Category",
-      brand: "Brand Name",
-      tags: "tag1, tag2, tag3",
-      key_features: "Feature 1, Feature 2",
-      image_url: "https://example.com/image.jpg",
-    },
-  ];
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Toolsman Admin";
+  workbook.created = new Date();
 
-  const ws = XLSX.utils.json_to_sheet(template);
-  const wb = XLSX.utils.book_new();
-
-  // Create hidden dropdown data sheet
-  const dropdownSheet = createDropdownDataSheet(categories);
-  XLSX.utils.book_append_sheet(wb, dropdownSheet, "DropdownData");
-
-  // Move products sheet to front
-  XLSX.utils.book_append_sheet(wb, ws, "Products");
-  wb.SheetNames = ["Products", "DropdownData"];
-
-  // Create named ranges for categories and subcategories
-  if (!wb.Workbook) {
-    wb.Workbook = { Names: [] };
-  }
-  if (!wb.Workbook.Names) {
-    wb.Workbook.Names = [];
-  }
-
-  // Named range for all categories
-  const categoryRange = `DropdownData!$A$1:$A$${categories.length}`;
-  wb.Workbook.Names.push({
-    Name: "Categories",
-    Ref: categoryRange,
-    SheetName: "DropdownData",
+  // ── 1. Hidden DropdownData sheet ─────────────────────────────────────────
+  //   Col A  = parent category names
+  //   Col B+ = subcategory names for each parent
+  const ddSheet = workbook.addWorksheet("DropdownData", {
+    state: "veryHidden",
   });
 
-  // Named ranges for each category's subcategories
-  categories.forEach((category, idx) => {
-    const sanitizedName = sanitizeNamedRangeName(category.name);
-    const colLetter = String.fromCharCode(66 + idx); // B, C, D, etc.
-    const subRange = `DropdownData!$${colLetter}$1:$${colLetter}$${category.subcategories.length}`;
+  const categoryNames = categories.map((c) => c.name);
 
-    wb.Workbook.Names.push({
-      Name: sanitizedName,
-      Ref: subRange,
-      SheetName: "DropdownData",
+  // Write category names into column A
+  categoryNames.forEach((name, rowIdx) => {
+    ddSheet.getCell(rowIdx + 1, 1).value = name;
+  });
+
+  // Write each category's subcategories into its own column (B, C, …)
+  categories.forEach((cat, catIdx) => {
+    cat.subcategories.forEach((sub, subIdx) => {
+      ddSheet.getCell(subIdx + 1, catIdx + 2).value = sub.name;
     });
   });
 
-  // Apply data validation for category column (starting from row 2)
-  // Columns: A=name, B=description, C=price, D=original_price, E=sku, F=stock_quantity, G=category, H=sub_category
-  const startRow = 2;
-  const endRow = 5001; // Support up to 5000 data rows
-
-  // Apply category validation to column G (Category)
-  if (!ws["!dataValidations"]) {
-    ws["!dataValidations"] = [];
+  // ── 2. Named ranges ───────────────────────────────────────────────────────
+  // "Categories" → all category names in DropdownData column A
+  if (categoryNames.length > 0) {
+    workbook.definedNames.add(
+      `DropdownData!$A$1:$A$${categoryNames.length}`,
+      "Categories"
+    );
   }
 
-  ws["!dataValidations"].push({
-    type: "list",
-    formula1: "Categories",
-    sqref: `G${startRow}:G${endRow}`,
-    showInputMessage: true,
-    prompt: "Select a category from the dropdown",
+  // One named range per category → its subcategory column in DropdownData
+  categories.forEach((cat, idx) => {
+    if (cat.subcategories.length === 0) return;
+    const sanitized = sanitizeNamedRangeName(cat.name);
+    const colLetter = colIndexToLetter(idx + 1); // catIdx 0 → col B, etc.
+    workbook.definedNames.add(
+      `DropdownData!$${colLetter}$1:$${colLetter}$${cat.subcategories.length}`,
+      sanitized
+    );
   });
 
-  // Apply subcategory validation with INDIRECT formula to column H (Sub Category)
-  // This creates dependent dropdowns
-  // For each row, the formula references the category cell in the same row
-  ws["!dataValidations"].push({
-    type: "list",
-    formula1: `INDIRECT(SUBSTITUTE(G2," ","_"))`,
-    sqref: `H${startRow}:H${endRow}`,
-    showInputMessage: true,
-    prompt: "Subcategory will update based on category selection",
-    showDropDown: true,
-  });
+  // ── 3. Products sheet ─────────────────────────────────────────────────────
+  const ws = workbook.addWorksheet("Products");
 
-  // Format header row: freeze panes and bold
-  const headerRow = ws["A1"];
-  if (!ws["!freeze"]) {
-    ws["!freeze"] = { xSplit: 0, ySplit: 1 }; // Freeze first row
-  }
-
-  // Set column widths for better readability
-  ws["!cols"] = [
-    { wch: 25 }, // name
-    { wch: 40 }, // description
-    { wch: 12 }, // price
-    { wch: 15 }, // original_price
-    { wch: 12 }, // sku
-    { wch: 15 }, // stock_quantity
-    { wch: 20 }, // category
-    { wch: 20 }, // sub_category
-    { wch: 15 }, // brand
-    { wch: 25 }, // tags
-    { wch: 25 }, // key_features
-    { wch: 30 }, // image_url
+  // Define columns (sets headers + widths in one pass)
+  ws.columns = [
+    { header: "name", key: "name", width: 25 },
+    { header: "description", key: "description", width: 40 },
+    { header: "price", key: "price", width: 12 },
+    { header: "original_price", key: "original_price", width: 15 },
+    { header: "sku", key: "sku", width: 12 },
+    { header: "stock_quantity", key: "stock_quantity", width: 15 },
+    { header: "category", key: "category", width: 22 },
+    { header: "sub_category", key: "sub_category", width: 22 },
+    { header: "brand", key: "brand", width: 15 },
+    { header: "tags", key: "tags", width: 25 },
+    { header: "key_features", key: "key_features", width: 25 },
+    { header: "image_url", key: "image_url", width: 35 },
+    { header: "image_url_2", key: "image_url_2", width: 35 },
+    { header: "image_url_3", key: "image_url_3", width: 35 },
+    { header: "image_url_4", key: "image_url_4", width: 35 },
+    { header: "image_url_5", key: "image_url_5", width: 35 },
   ];
 
-  // Hide the DropdownData sheet
-  const dropdownSheetIdx = wb.SheetNames.indexOf("DropdownData");
-  if (dropdownSheetIdx !== -1) {
-    if (!wb.Workbook.Sheets) {
-      wb.Workbook.Sheets = [];
-    }
-    if (!wb.Workbook.Sheets[dropdownSheetIdx]) {
-      wb.Workbook.Sheets[dropdownSheetIdx] = {};
-    }
-    wb.Workbook.Sheets[dropdownSheetIdx].Hidden = true;
+  // Bold header row
+  ws.getRow(1).font = { bold: true };
+
+  // Sample data row
+  ws.addRow({
+    name: "Example Product",
+    description: "Product description here",
+    price: 9999,
+    original_price: 12999,
+    sku: "SKU-001",
+    stock_quantity: 100,
+    category: categoryNames[0] ?? "Select Category",
+    sub_category:
+      categories[0]?.subcategories[0]?.name ?? "Select Sub Category",
+    brand: "Brand Name",
+    tags: "tag1, tag2, tag3",
+    key_features: "Feature 1, Feature 2",
+    image_url: "https://example.com/image1.jpg",
+    image_url_2: "https://example.com/image2.jpg",
+    image_url_3: "https://example.com/image3.jpg",
+    image_url_4: "",
+    image_url_5: "",
+  });
+
+  // Freeze the header row
+  ws.views = [{ state: "frozen", xSplit: 0, ySplit: 1 }];
+
+  // ── 4. Add data validations ───────────────────────────────────────────────
+  // Apply to rows 2–2001 (covers 2,000 products — more than enough for bulk import)
+  const DATA_ROWS = 2001;
+
+  for (let row = 2; row <= DATA_ROWS; row++) {
+    // Category dropdown (column G = index 7)
+    ws.getCell(row, 7).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      formulae: ["Categories"],
+      showInputMessage: true,
+      promptTitle: "Category",
+      prompt: "Select a category from the dropdown list",
+      showErrorMessage: true,
+      errorTitle: "Invalid Category",
+      error: "Please select a valid category from the list",
+    };
+
+    // Sub-category dropdown (column H = index 8)
+    // INDIRECT(SUBSTITUTE(Gn," ","_")) resolves to the named range for the chosen category
+    ws.getCell(row, 8).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      formulae: [`INDIRECT(SUBSTITUTE(G${row}," ","_"))`],
+      showInputMessage: true,
+      promptTitle: "Sub Category",
+      prompt: "Select a sub-category (filtered by your category choice)",
+    };
   }
 
-  // Write file
-  XLSX.writeFile(wb, "product_import_template.xlsx");
+  // ── 5. Write to buffer and trigger browser download ───────────────────────
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "product_import_template.xlsx";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 /**
- * Parses imported Excel file and handles both old and new formats
+ * Parses an uploaded Excel or CSV file and returns the rows as plain objects.
+ * Prioritises the "Products" sheet; skips the "DropdownData" helper sheet.
  */
 export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
   return new Promise((resolve, reject) => {
@@ -247,9 +219,14 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
           return;
         }
 
-        // Find the Products sheet, or use the first sheet
+        // Prefer the "Products" sheet; skip utility sheets
         const sheetName =
-          workbook.SheetNames.find((name) => name.toLowerCase() === "products") ||
+          workbook.SheetNames.find(
+            (n) => n.toLowerCase() === "products"
+          ) ||
+          workbook.SheetNames.find(
+            (n) => n.toLowerCase() !== "dropdowndata"
+          ) ||
           workbook.SheetNames[0];
 
         const sheet = workbook.Sheets[sheetName];
@@ -260,7 +237,9 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
 
         if (jsonData.length === 0) {
           reject(
-            new Error("No data found in the Excel file. Make sure headers exist.")
+            new Error(
+              "No data found in the Excel file. Make sure headers exist and rows are filled in."
+            )
           );
           return;
         }
