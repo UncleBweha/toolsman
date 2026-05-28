@@ -464,6 +464,84 @@ const ProductManagement = () => {
     return `Kshs ${Number(price).toLocaleString('en-US', { minimumFractionDigits: 0 })}`;
   };
 
+  /**
+   * Generates SEO-friendly keyword tags from the current form data.
+   * Follows Google best-practices: brand + product-type phrases,
+   * feature keywords, category combos and Kenya-specific long-tail terms.
+   */
+  const generateSeoTags = (): string => {
+    const stop = new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','is','are','was','were','be','been','have','has','do','does','this','that','it','its','up','out','as','into','also','very','just']);
+    const clean = (t: string) => t.replace(/<[^>]+>/g, ' ').replace(/[^a-zA-Z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const name      = formData.name.trim();
+    const brand     = formData.brand.trim();
+    const nameParts = name.split(/\s+/);
+    const catId     = formData.subcategory_id || formData.category_id;
+    const catName   = categories.find(c => c.id === catId)?.name ||
+                      categories.find(c => c.id === formData.category_id)?.name || '';
+
+    const tags = new Set<string>();
+
+    // 1. Full product name
+    if (name) tags.add(name);
+
+    // 2. Product type (last 2-3 words of name, e.g. "Bluetooth Speaker")
+    if (nameParts.length >= 3) tags.add(nameParts.slice(-3).join(' '));
+    if (nameParts.length >= 2) tags.add(nameParts.slice(-2).join(' '));
+
+    // 3. Brand combos
+    if (brand) {
+      tags.add(`${brand} Kenya`);
+      tags.add(`Buy ${brand} Online`);
+      if (catName) tags.add(`${brand} ${catName}`);
+      if (nameParts.length >= 2) {
+        tags.add(`${brand} ${nameParts.slice(1).join(' ')}`);
+        tags.add(`${brand} ${nameParts.slice(-2).join(' ')}`);
+      }
+    }
+
+    // 4. Category combos
+    if (catName) {
+      tags.add(catName);
+      tags.add(`${catName} Kenya`);
+      tags.add(`Best ${catName} Kenya`);
+      tags.add(`Buy ${catName} Online Kenya`);
+    }
+
+    // 5. Key features — extract meaningful multi-word phrases
+    if (formData.key_features) {
+      formData.key_features.split('\n').map(f => f.trim()).filter(Boolean).slice(0, 5).forEach(feat => {
+        const words = clean(feat).split(/\s+/).filter(w => w.length > 3 && !stop.has(w.toLowerCase()));
+        if (words.length >= 2) tags.add(words.slice(0, 3).join(' '));
+        if (brand && words.length >= 1) tags.add(`${brand} ${words.slice(0, 2).join(' ')}`);
+      });
+    }
+
+    // 6. Description keyword extraction (top-frequency words)
+    if (formData.description) {
+      const descWords = clean(formData.description).toLowerCase().split(/\s+/).filter(w => w.length > 4 && !stop.has(w));
+      const freq: Record<string, number> = {};
+      descWords.forEach(w => { const k = w.replace(/[^a-z]/g,''); if (k.length > 4) freq[k] = (freq[k] || 0) + 1; });
+      Object.entries(freq).sort((a,b) => b[1]-a[1]).slice(0, 4).forEach(([w]) => {
+        if (brand) tags.add(`${brand} ${w}`);
+        if (catName) tags.add(`${catName} ${w}`);
+      });
+    }
+
+    // 7. Buy / price long-tail tags
+    if (name) {
+      tags.add(`${name} price Kenya`);
+      tags.add(`${name} Kenya`);
+      tags.add(`Buy ${name} Kenya`);
+    }
+
+    return Array.from(tags)
+      .map(t => t.replace(/\s+/g,' ').trim())
+      .filter(t => t.length > 2)
+      .slice(0, 20)
+      .join(', ');
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -819,14 +897,24 @@ const ProductManagement = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="tags">Tags</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="tags">Tags</Label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, tags: generateSeoTags() }))}
+                    className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
+                    title="Auto-generate SEO-friendly tags from product data"
+                  >
+                    ✦ Auto-Generate SEO Tags
+                  </button>
+                </div>
                 <Input
                   id="tags"
                   value={formData.tags}
                   onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                   placeholder="power tool, cordless, drill (comma-separated)"
                 />
-                <p className="text-xs text-muted-foreground">Separate tags with commas for better product discovery.</p>
+                <p className="text-xs text-muted-foreground">Comma-separated. Click <strong>Auto-Generate</strong> to build keyword tags from title, brand, category &amp; features.</p>
               </div>
 
               <div className="space-y-2">

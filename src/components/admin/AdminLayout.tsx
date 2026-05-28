@@ -1,198 +1,243 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Users,
-  Package, 
-  FolderTree,
-  Settings,
-  Menu,
-  Search,
-  Bell,
-  ExternalLink,
-  ChevronLeft,
-  Upload,
-  BarChart3
+import {
+  LayoutDashboard, ShoppingCart, Users, Package, FolderTree,
+  Settings, Menu, Search, Bell, ExternalLink, ChevronLeft,
+  Upload, BarChart3, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 
-interface AdminLayoutProps {
-  children: ReactNode;
-}
+interface AdminLayoutProps { children: ReactNode; }
 
-const sidebarSections = [
+const NAV = [
   {
     title: "",
-    items: [
-      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-    ]
+    items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     title: "SALES",
     items: [
-      { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
+      { href: "/admin/orders",    label: "Orders",    icon: ShoppingCart },
       { href: "/admin/customers", label: "Customers", icon: Users },
-    ]
+    ],
   },
   {
     title: "CATALOG",
     items: [
-      { href: "/admin/products", label: "Products", icon: Package },
-      { href: "/admin/categories", label: "Categories", icon: FolderTree },
-      { href: "/admin/import", label: "Bulk Import", icon: Upload },
-    ]
+      { href: "/admin/products",   label: "Products",    icon: Package },
+      { href: "/admin/categories", label: "Categories",  icon: FolderTree },
+      { href: "/admin/import",     label: "Bulk Import", icon: Upload },
+    ],
   },
   {
     title: "REPORTS",
-    items: [
-      { href: "/admin/reports", label: "Sales & Analytics", icon: BarChart3 },
-    ]
+    items: [{ href: "/admin/reports", label: "Sales & Analytics", icon: BarChart3 }],
   },
   {
     title: "SYSTEM",
-    items: [
-      { href: "/admin/settings", label: "Settings", icon: Settings },
-    ]
-  }
+    items: [{ href: "/admin/settings", label: "Settings", icon: Settings }],
+  },
 ];
 
+/* ── Shared nav list ── */
+const NavList = ({
+  location,
+  collapsed,
+  onNavigate,
+}: {
+  location: ReturnType<typeof useLocation>;
+  collapsed: boolean;
+  onNavigate: () => void;
+}) => (
+  <div className="flex-1 overflow-y-auto py-3">
+    {NAV.map((section, idx) => (
+      <div key={idx} className="mb-4">
+        {!collapsed && section.title && (
+          <p className="px-5 mb-1.5 text-[10px] font-semibold text-white/40 tracking-wider">
+            {section.title}
+          </p>
+        )}
+        <nav className="space-y-0.5">
+          {section.items.map((item) => {
+            const active = location.pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                onClick={onNavigate}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "flex items-center mx-2 px-3 py-2 rounded-lg transition-colors",
+                  active
+                    ? "bg-[#FF6B00] text-white"
+                    : "text-white/70 hover:bg-white/10 hover:text-white",
+                )}
+              >
+                <item.icon className={cn("h-4 w-4 shrink-0", !collapsed && "mr-2.5")} />
+                {!collapsed && <span className="text-[13px] font-medium">{item.label}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    ))}
+  </div>
+);
+
+/* ── Main layout ── */
 const AdminLayout = ({ children }: AdminLayoutProps) => {
   const location = useLocation();
   const { profile } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed]   = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const closeMobile = () => setMobileOpen(false);
 
   return (
     <div className="flex h-screen bg-[#F8F9FB] overflow-hidden font-sans">
-      
-      {/* Sidebar */}
-      <aside 
+
+      {/* ── Mobile overlay backdrop ── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── Mobile drawer sidebar ── */}
+      <aside
         className={cn(
-          "bg-[#111827] text-white flex flex-col transition-all duration-300 z-20",
-          collapsed ? "w-20" : "w-64"
+          "fixed inset-y-0 left-0 z-40 w-64 bg-[#111827] text-white flex flex-col transition-transform duration-300 md:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        {/* Logo Area */}
-        <div className="h-16 flex items-center px-4 border-b border-white/10 shrink-0">
-          <Link to="/admin" className="flex items-center">
-            <img src="/logo.png" alt="Toolsman" className="h-8 w-8 object-contain mr-3" />
-            {!collapsed && <span className="font-bold text-lg tracking-wide uppercase">Toolsman</span>}
+        {/* Header */}
+        <div className="h-13 flex items-center justify-between px-4 border-b border-white/10 shrink-0">
+          <Link to="/admin" onClick={closeMobile} className="flex items-center gap-2">
+            <img src="/logo.png" alt="Toolsman" className="h-7 w-7 object-contain" />
+            <span className="font-bold text-base uppercase tracking-wide">Toolsman</span>
+          </Link>
+          <button onClick={closeMobile} className="text-white/60 hover:text-white p-1">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <NavList location={location} collapsed={false} onNavigate={closeMobile} />
+
+        <div className="p-4 border-t border-white/10 text-xs text-white/30 shrink-0">
+          Toolsman Admin v1.0
+        </div>
+      </aside>
+
+      {/* ── Desktop sidebar ── */}
+      <aside
+        className={cn(
+          "hidden md:flex bg-[#111827] text-white flex-col transition-all duration-300 z-20 shrink-0",
+          collapsed ? "w-16" : "w-56",
+        )}
+      >
+        {/* Logo */}
+        <div className="h-12 flex items-center px-4 border-b border-white/10 shrink-0">
+          <Link to="/admin" className="flex items-center gap-2 overflow-hidden">
+            <img src="/logo.png" alt="Toolsman" className="h-6 w-6 object-contain shrink-0" />
+            {!collapsed && (
+              <span className="font-bold text-sm uppercase tracking-wide whitespace-nowrap">Toolsman</span>
+            )}
           </Link>
         </div>
 
-        {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-white/10">
-          {sidebarSections.map((section, idx) => (
-            <div key={idx} className="mb-6">
-              {!collapsed && section.title && (
-                <div className="px-6 mb-2 text-xs font-semibold text-white/40 tracking-wider">
-                  {section.title}
-                </div>
-              )}
-              <nav className="space-y-1">
-                {section.items.map((item) => {
-                  const isActive = location.pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      to={item.href}
-                      className={cn(
-                        "flex items-center px-4 py-2.5 mx-2 rounded-lg transition-colors group relative",
-                        isActive 
-                          ? "bg-[#FF6B00] text-white" 
-                          : "text-white/70 hover:bg-white/10 hover:text-white"
-                      )}
-                      title={collapsed ? item.label : undefined}
-                    >
-                      <item.icon className={cn("h-5 w-5 shrink-0", !collapsed && "mr-3")} />
-                      {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          ))}
-        </div>
+        <NavList location={location} collapsed={collapsed} onNavigate={() => {}} />
 
-        {/* Collapse Button */}
-        <div className="p-4 border-t border-white/10 shrink-0">
-          <button 
+        {/* Collapse toggle */}
+        <div className="p-3 border-t border-white/10 shrink-0">
+          <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center w-full text-white/70 hover:text-white transition-colors"
+            className="flex items-center w-full text-white/60 hover:text-white transition-colors"
           >
-            <ChevronLeft className={cn("h-5 w-5 transition-transform", collapsed && "rotate-180")} />
-            {!collapsed && <span className="ml-3 text-sm font-medium">Collapse Menu</span>}
+            <ChevronLeft className={cn("h-4 w-4 shrink-0 transition-transform", collapsed && "rotate-180")} />
+            {!collapsed && <span className="ml-2 text-[12px] font-medium">Collapse</span>}
           </button>
         </div>
       </aside>
 
-      {/* Main Content Wrapper */}
+      {/* ── Main content ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        
-        {/* Top Header */}
-        <header className="h-16 bg-white border-b flex items-center justify-between px-6 shrink-0 z-10">
-          <div className="flex items-center flex-1">
-            <button className="mr-4 text-gray-500 hover:text-gray-700">
+
+        {/* Top bar */}
+        <header className="h-12 bg-white border-b flex items-center justify-between px-3 md:px-5 shrink-0 z-10 gap-3">
+          {/* Left */}
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {/* Hamburger — opens mobile drawer */}
+            <button
+              className="text-gray-500 hover:text-gray-700 flex-shrink-0 md:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+            >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="relative w-96 max-w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input 
-                placeholder="Search anything..." 
-                className="pl-9 bg-gray-50/50 border-gray-200 focus-visible:ring-gray-200 h-9"
+
+            {/* Desktop: desktop sidebar is always shown, so this is just a placeholder */}
+            <button
+              className="text-gray-500 hover:text-gray-700 flex-shrink-0 hidden md:block"
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label="Toggle sidebar"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+
+            {/* Search bar — hidden on very small screens */}
+            <div className="relative hidden sm:block w-40 md:w-64 lg:w-80 max-w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              <Input
+                placeholder="Search..."
+                className="pl-8 h-8 text-sm bg-gray-50 border-gray-200 focus-visible:ring-gray-200"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-                  <span className="text-xs">⌘</span>K
-                </kbd>
-              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <button className="relative text-gray-500 hover:text-gray-700">
-              <Bell className="h-5 w-5" />
+          {/* Right */}
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
+            <button className="text-gray-500 hover:text-gray-700">
+              <Bell className="h-4 w-4 md:h-5 md:w-5" />
             </button>
-            
-            <Link to="/">
-              <Button variant="outline" size="sm" className="h-9 gap-2">
-                View Store
-                <ExternalLink className="h-3.5 w-3.5" />
+
+            <Link to="/" className="hidden sm:block">
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                <span className="hidden md:inline">View Store</span>
+                <ExternalLink className="h-3 w-3" />
               </Button>
             </Link>
 
-            <div className="h-8 w-px bg-gray-200" />
+            <div className="h-5 w-px bg-gray-200 hidden sm:block" />
 
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium text-gray-900">Admin</div>
-                <div className="text-xs text-gray-500">Super Administrator</div>
+            <div className="flex items-center gap-2">
+              <div className="text-right hidden lg:block">
+                <p className="text-xs font-semibold text-gray-900 leading-none">Admin</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Super Administrator</p>
               </div>
-              <Avatar className="h-9 w-9 border">
+              <Avatar className="h-7 w-7 border">
                 <AvatarImage src={profile?.avatar_url || ""} />
-                <AvatarFallback className="bg-gray-100 text-gray-600">AD</AvatarFallback>
+                <AvatarFallback className="bg-gray-100 text-gray-600 text-[10px] font-bold">AD</AvatarFallback>
               </Avatar>
             </div>
           </div>
         </header>
 
-        {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300">
+        {/* Scrollable content */}
+        <main className="flex-1 overflow-y-auto p-3 md:p-5 scrollbar-thin scrollbar-thumb-gray-300">
           <div className="mx-auto max-w-7xl">
             {children}
-            
-            <footer className="mt-12 pt-6 border-t flex items-center justify-between text-xs text-gray-500">
-              <div>© 2026 ToolsMan Admin. All rights reserved.</div>
-              <div>Version 1.0.0</div>
+            <footer className="mt-8 pt-4 border-t flex items-center justify-between text-[11px] text-gray-400">
+              <span>© 2026 ToolsMan Admin. All rights reserved.</span>
+              <span>v1.0.0</span>
             </footer>
           </div>
         </main>
-
       </div>
     </div>
   );

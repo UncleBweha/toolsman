@@ -111,7 +111,7 @@ export async function generateProductImportTemplate(
     { header: "price", key: "price", width: 12 },
     { header: "original_price", key: "original_price", width: 15 },
     { header: "sku", key: "sku", width: 12 },
-    { header: "stock_quantity", key: "stock_quantity", width: 15 },
+    // stock_quantity removed — col F = category, col G = sub_category
     { header: "category", key: "category", width: 22 },
     { header: "sub_category", key: "sub_category", width: 22 },
     { header: "brand", key: "brand", width: 15 },
@@ -134,7 +134,6 @@ export async function generateProductImportTemplate(
     price: 9999,
     original_price: 12999,
     sku: "SKU-001",
-    stock_quantity: 100,
     category: categoryNames[0] ?? "Select Category",
     sub_category:
       categories[0]?.subcategories[0]?.name ?? "Select Sub Category",
@@ -156,8 +155,8 @@ export async function generateProductImportTemplate(
   const DATA_ROWS = 2001;
 
   for (let row = 2; row <= DATA_ROWS; row++) {
-    // Category dropdown (column G = index 7)
-    ws.getCell(row, 7).dataValidation = {
+    // Category dropdown — col F (index 6, after removing stock_quantity)
+    ws.getCell(row, 6).dataValidation = {
       type: "list",
       allowBlank: true,
       formulae: ["Categories"],
@@ -169,15 +168,17 @@ export async function generateProductImportTemplate(
       error: "Please select a valid category from the list",
     };
 
-    // Sub-category dropdown (column H = index 8)
-    // INDIRECT(SUBSTITUTE(Gn," ","_")) resolves to the named range for the chosen category
-    ws.getCell(row, 8).dataValidation = {
+    // Sub-category dropdown — col G (index 7)
+    // INDIRECT(SUBSTITUTE(Fn," ","_")) dynamically resolves to the
+    // named range matching the category chosen in the same row (col F).
+    ws.getCell(row, 7).dataValidation = {
       type: "list",
       allowBlank: true,
-      formulae: [`INDIRECT(SUBSTITUTE(G${row}," ","_"))`],
+      formulae: [`INDIRECT(SUBSTITUTE(F${row}," ","_"))`],
       showInputMessage: true,
       promptTitle: "Sub Category",
-      prompt: "Select a sub-category (filtered by your category choice)",
+      prompt: "Select a sub-category — filtered to match your chosen category",
+      showErrorMessage: false,
     };
   }
 

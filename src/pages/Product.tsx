@@ -13,29 +13,21 @@ import Footer from "@/components/layout/Footer";
 import AntiCopyProtection from "@/components/AntiCopyProtection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Minus, Plus, ShoppingCart, Loader2, Heart, Truck,
-  Award, Calendar, MapPin, ShieldCheck, Lock, Headset, ChevronRight,
-  ChevronLeft, Check, ZoomIn,
+  ChevronRight, ChevronLeft, Check, ZoomIn,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Product as ProductType } from "@/types/database";
 import { getProxiedImageUrl } from "@/lib/imageUtils";
-import { KENYA_COUNTIES, getDeliveryFee } from "@/lib/checkoutConstants";
 import DOMPurify from "dompurify";
 
-const DELIVERY_LOCATION_KEY = "toolsman_delivery_location";
+
 
 const Product = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -47,10 +39,6 @@ const Product = () => {
   const [zoomOpen, setZoomOpen] = useState(false);
   const [hoverZoom, setHoverZoom] = useState({ active: false, x: 50, y: 50 });
   const touchStartX = useRef<number | null>(null);
-  const [deliveryLocation, setDeliveryLocation] = useState<string>(
-    () => localStorage.getItem(DELIVERY_LOCATION_KEY) || "Nairobi"
-  );
-  const [locationOpen, setLocationOpen] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
 
   const { data: product, isLoading, isError } = useQuery({
@@ -159,16 +147,7 @@ const Product = () => {
     });
   };
 
-  const handleLocationChange = (loc: string) => {
-    setDeliveryLocation(loc);
-    localStorage.setItem(DELIVERY_LOCATION_KEY, loc);
-    setLocationOpen(false);
-    toast({ title: "Delivery location updated", description: loc });
-  };
 
-  const deliveryFee = getDeliveryFee(deliveryLocation, "standard");
-  const estimatedDelivery =
-    deliveryLocation.toLowerCase() === "nairobi" ? "1–2 business days" : "2–5 business days";
 
   // (duplicate useEffect removed — meta tags are set in the first useEffect above)
 
@@ -215,9 +194,9 @@ const Product = () => {
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
       <AntiCopyProtection />
-      <main className="flex-1 container py-6 md:py-8" data-protected>
+      <main className="flex-1 container py-4 md:py-5" data-protected>
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 flex-wrap">
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-4 flex-wrap">
           <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
           <ChevronRight className="h-3 w-3" />
           {product.category && (
@@ -231,7 +210,7 @@ const Product = () => {
           <span className="text-gray-900 font-medium truncate max-w-[60vw]">{product.name}</span>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
+        <div className="grid lg:grid-cols-12 gap-4 lg:gap-6">
           {/* Images Column */}
           <div className="lg:col-span-5 flex flex-col-reverse md:flex-row gap-3 md:gap-4">
             {images.length > 1 && (
@@ -250,6 +229,8 @@ const Product = () => {
                       src={img || "/placeholder.svg"}
                       alt=""
                       className="w-full h-full object-contain"
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
                       onError={(e) => {
                         const t = e.target as HTMLImageElement;
                         t.onerror = null;
@@ -262,31 +243,39 @@ const Product = () => {
             )}
             <div className="flex-1 relative">
               <div
-                className="aspect-square w-full bg-white border border-gray-200 rounded-lg overflow-hidden relative p-4 md:p-8 flex items-center justify-center cursor-zoom-in select-none"
+                className="aspect-square w-full bg-white border border-gray-200 rounded-lg overflow-hidden relative p-2 md:p-5 flex items-center justify-center cursor-zoom-in select-none"
                 onMouseMove={onMouseMove}
                 onMouseLeave={() => setHoverZoom((p) => ({ ...p, active: false }))}
                 onTouchStart={onTouchStart}
                 onTouchEnd={onTouchEnd}
                 onClick={() => setZoomOpen(true)}
+                onContextMenu={(e) => e.preventDefault()}
                 style={{ touchAction: "pan-y pinch-zoom" }}
               >
                 <img
                   src={images[selectedImage] || "/placeholder.svg"}
                   alt={product.name}
+                  draggable={false}
+                  onContextMenu={(e) => e.preventDefault()}
                   className="max-w-full max-h-full object-contain transition-transform duration-200"
-                  style={
-                    hoverZoom.active
-                      ? {
-                          transform: `scale(2)`,
-                          transformOrigin: `${hoverZoom.x}% ${hoverZoom.y}%`,
-                        }
-                      : undefined
-                  }
+                  style={{
+                    WebkitTouchCallout: "none",
+                    userSelect: "none",
+                    ...(hoverZoom.active
+                      ? { transform: "scale(2)", transformOrigin: `${hoverZoom.x}% ${hoverZoom.y}%` }
+                      : {}),
+                  }}
                   onError={(e) => {
                     const t = e.target as HTMLImageElement;
                     t.onerror = null;
                     t.src = "/placeholder.svg";
                   }}
+                />
+                {/* Protection overlay — pointer-events-none so buttons below still work */}
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 z-[1] pointer-events-none"
+                  style={{ WebkitTouchCallout: "none", userSelect: "none", cursor: "zoom-in" }}
                 />
                 <button
                   type="button"
@@ -294,7 +283,7 @@ const Product = () => {
                     e.stopPropagation();
                     setZoomOpen(true);
                   }}
-                  className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-full p-2 shadow-sm border border-gray-200 hover:bg-white"
+                  className="absolute top-3 right-3 z-[2] bg-white/90 backdrop-blur rounded-full p-2 shadow-sm border border-gray-200 hover:bg-white"
                   aria-label="Zoom image"
                 >
                   <ZoomIn className="h-4 w-4 text-gray-700" />
@@ -325,11 +314,29 @@ const Product = () => {
             {/* Zoom dialog */}
             <Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
               <DialogContent className="max-w-4xl p-0 bg-white">
-                <div className="relative w-full aspect-square overflow-auto bg-white" style={{ touchAction: "pinch-zoom" }}>
+                <div
+                  className="relative w-full aspect-square overflow-hidden bg-white"
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ touchAction: "pinch-zoom", WebkitTouchCallout: "none", userSelect: "none" }}
+                >
                   <img
                     src={images[selectedImage]}
                     alt={product.name}
                     className="w-full h-full object-contain"
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
+                    style={{ WebkitTouchCallout: "none", userSelect: "none" }}
+                    onError={(e) => {
+                      const t = e.target as HTMLImageElement;
+                      t.onerror = null;
+                      t.src = "/placeholder.svg";
+                    }}
+                  />
+                  {/* Pointer-events-none overlay — blocks mobile long-press save */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 z-10 pointer-events-none"
+                    style={{ WebkitTouchCallout: "none" }}
                   />
                 </div>
               </DialogContent>
@@ -337,21 +344,21 @@ const Product = () => {
           </div>
 
           {/* Info Column */}
-          <div className="lg:col-span-4 space-y-5">
-            <h1 className="text-2xl font-bold leading-tight text-gray-900">{product.name}</h1>
+          <div className="lg:col-span-4 space-y-4">
+            <h1 className="text-xl md:text-2xl font-bold leading-tight text-gray-900">{product.name}</h1>
 
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               SKU: {product.sku || `TM-${product.id.slice(0, 5).toUpperCase()}`}
             </div>
 
-            <div className="flex items-end gap-3 flex-wrap">
-              <span className="text-3xl font-extrabold text-gray-900">{formatPrice(product.price)}</span>
+            <div className="flex items-end gap-2.5 flex-wrap">
+              <span className="text-2xl md:text-3xl font-extrabold text-gray-900">{formatPrice(product.price)}</span>
               {product.original_price && (
                 <>
-                  <span className="text-lg text-muted-foreground line-through mb-1">
+                  <span className="text-base text-muted-foreground line-through mb-0.5">
                     {formatPrice(product.original_price)}
                   </span>
-                  <Badge className="bg-[#FF5722] hover:bg-[#e64a19] text-white rounded px-2 py-0.5 mb-1.5 text-[10px] uppercase font-bold">
+                  <Badge className="bg-[#FF5722] hover:bg-[#e64a19] text-white rounded px-1.5 py-0.5 mb-1 text-[9px] uppercase font-bold">
                     {discount}% OFF
                   </Badge>
                 </>
@@ -391,41 +398,41 @@ const Product = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 pt-2">
+             <div className="flex items-center gap-4 pt-1">
               <div className="flex items-center border border-gray-300 rounded-md bg-white">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 rounded-none border-r border-gray-300 hover:bg-gray-50 text-gray-600"
+                  className="h-8 w-8 rounded-none border-r border-gray-300 hover:bg-gray-50 text-gray-600"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   disabled={quantity <= 1}
                 >
-                  <Minus className="h-4 w-4" />
+                  <Minus className="h-3 w-3" />
                 </Button>
-                <span className="w-12 text-center font-medium text-sm">{quantity}</span>
+                <span className="w-10 text-center font-medium text-xs">{quantity}</span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 rounded-none border-l border-gray-300 hover:bg-gray-50 text-gray-600"
+                  className="h-8 w-8 rounded-none border-l border-gray-300 hover:bg-gray-50 text-gray-600"
                   onClick={() => setQuantity(quantity + 1)}
                   disabled={product.stock_quantity !== null && quantity >= product.stock_quantity}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3 w-3" />
                 </Button>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-1.5">
               <Button
-                className="flex-1 bg-[#FF5722] hover:bg-[#e64a19] text-white h-12 font-bold shadow-none"
+                className="flex-1 bg-[#FF5722] hover:bg-[#e64a19] text-white h-10 font-bold shadow-none text-xs"
                 onClick={handleAddToCart}
                 disabled={product.stock_quantity === 0}
               >
-                <ShoppingCart className="h-5 w-5 mr-2" />
+                <ShoppingCart className="h-4 w-4 mr-2" />
                 ADD TO CART
               </Button>
               <Button
-                className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white h-12 font-bold shadow-none"
+                className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white h-10 font-bold shadow-none text-xs"
                 onClick={async () => { await handleAddToCart(); navigate("/cart"); }}
                 disabled={product.stock_quantity === 0}
               >
@@ -461,148 +468,54 @@ const Product = () => {
             )}
 
 
-            <div className="grid grid-cols-3 gap-2 pt-5 mt-5 border-t border-gray-100">
-              {[
-                { Icon: Award, t: "Quality Guarantee", s: "Pro-grade tools" },
-                { Icon: ShieldCheck, t: "Secure Payment", s: "100% protected" },
-                { Icon: Headset, t: "Expert Support", s: "We're here to help" },
-              ].map(({ Icon, t, s }) => (
-                <div key={t} className="flex items-center justify-center gap-2 px-2 py-3 bg-gray-50 rounded-lg">
-                  <Icon className="h-5 w-5 text-gray-600 flex-shrink-0" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-gray-900 leading-tight">{t}</span>
-                    <span className="text-[9px] text-gray-500">{s}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+
           </div>
 
-          {/* Right Column */}
+          {/* Right Column — Key Features */}
           <div className="lg:col-span-3">
-            <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
-              <CardContent className="p-5 space-y-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span className="text-2xl font-extrabold text-gray-900">{formatPrice(product.price)}</span>
-                    {discount > 0 && (
-                      <Badge className="bg-[#FF5722] text-white px-1.5 py-0 text-[10px] uppercase font-bold">
-                        {discount}% OFF
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Shipping: {formatPrice(deliveryFee)} to {deliveryLocation}
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <Calendar className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Estimated Delivery</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{estimatedDelivery}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Deliver to</p>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-900 truncate">
-                      <MapPin className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                      <span className="truncate">{deliveryLocation}, Kenya</span>
-                    </div>
-                    <Dialog open={locationOpen} onOpenChange={setLocationOpen}>
-                      <DialogTrigger asChild>
-                        <button className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors flex-shrink-0">
-                          Change
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-sm">
-                        <DialogHeader>
-                          <DialogTitle>Choose delivery location</DialogTitle>
-                        </DialogHeader>
-                        <Select value={deliveryLocation} onValueChange={handleLocationChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a county" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-72">
-                            {KENYA_COUNTIES.map((c) => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-
-                <Separator className="bg-gray-200" />
-
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <ShieldCheck className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 leading-tight">1 Year Warranty</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Manufacturer warranty</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <Lock className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 leading-tight">Secure Checkout</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">100% secure payment</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {product.key_features && product.key_features.filter(Boolean).length > 0 ? (
+              <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
+                <CardContent className="p-5">
+                  <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#FF5722] flex-shrink-0">
+                      <Check className="h-3 w-3 text-white" />
+                    </span>
+                    Key Features
+                  </h3>
+                  <ul className="space-y-3">
+                    {product.key_features.filter(Boolean).map((feature, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700 leading-snug">
+                        <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
+                <CardContent className="p-5">
+                  <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-3">Why Buy From Us</h3>
+                  <ul className="space-y-3">
+                    {[
+                      "Genuine products, verified quality",
+                      "Fast nationwide delivery across Kenya",
+                      "Secure & flexible payment options",
+                      "Dedicated after-sales support",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2.5 text-sm text-gray-700 leading-snug">
+                        <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
-        {/* Bottom Tabs */}
-        <div id="description" className="mt-12 md:mt-16 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm scroll-mt-24">
-          <Tabs defaultValue="description" className="w-full">
-            <TabsList className="w-full justify-start border-b border-gray-200 rounded-none h-[60px] bg-gray-50/50 p-0 gap-4 md:gap-8 px-4 md:px-8 overflow-x-auto">
-              <TabsTrigger
-                value="description"
-                className="data-[state=active]:border-b-2 data-[state=active]:border-[#FF5722] data-[state=active]:text-[#FF5722] data-[state=active]:shadow-none rounded-none bg-transparent font-semibold text-xs md:text-sm text-gray-500 py-5 px-1 h-full uppercase tracking-wider whitespace-nowrap"
-              >
-                Description
-              </TabsTrigger>
-              {product.key_features && product.key_features.filter(Boolean).length > 0 && (
-                <TabsTrigger
-                  value="features"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-[#FF5722] data-[state=active]:text-[#FF5722] data-[state=active]:shadow-none rounded-none bg-transparent font-semibold text-xs md:text-sm text-gray-500 py-5 px-1 h-full uppercase tracking-wider whitespace-nowrap"
-                >
-                  Key Features
-                </TabsTrigger>
-              )}
-            </TabsList>
-            <TabsContent value="description" className="p-6 md:p-8 m-0">
-              {cleanDescription ? (
-                <div
-                  className="prose prose-sm md:prose-base max-w-none text-gray-700 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: cleanDescription }}
-                />
-              ) : (
-                <p className="text-gray-500 text-sm">No description available for this product.</p>
-              )}
-            </TabsContent>
-            {product.key_features && product.key_features.filter(Boolean).length > 0 && (
-              <TabsContent value="features" className="p-6 md:p-8 m-0">
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
-                  {product.key_features.filter(Boolean).map((line, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
-                      <span>{line}</span>
-                    </li>
-                  ))}
-                </ul>
-              </TabsContent>
-            )}
 
-          </Tabs>
-        </div>
 
         {/* Related Products */}
         <RelatedProducts

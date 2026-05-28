@@ -57,7 +57,7 @@ const HeroBanner = () => {
   return (
     <section className="py-3 md:py-6 bg-white">
       <div className="container">
-        <div className="relative bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-sm border border-gray-200 p-3 md:p-10 lg:p-12 overflow-hidden">
+        <div className="relative bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-sm border border-gray-200 p-3 md:p-6 lg:p-8 overflow-hidden">
           {/* Decorative blobs — GPU-accelerated transforms only */}
           <motion.div
             className="pointer-events-none absolute -top-20 -right-20 w-72 h-72 rounded-full bg-[#FF5722]/10 blur-3xl"
@@ -78,7 +78,7 @@ const HeroBanner = () => {
             transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
           />
 
-          <div className="relative grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-8 items-center min-h-[150px] md:min-h-[420px] lg:min-h-[520px] xl:min-h-[640px]">
+          <div className="relative grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-8 items-center min-h-[150px] md:min-h-[340px] lg:min-h-[420px] xl:min-h-[500px]">
             <AnimatePresence mode="wait">
               <motion.div
                 key={slide.id}
@@ -91,7 +91,7 @@ const HeroBanner = () => {
                 <p className="text-[9px] md:text-sm font-bold text-[#FF5722] tracking-wider uppercase">
                   {eyebrow}
                 </p>
-                <h2 className="text-sm md:text-4xl lg:text-5xl xl:text-6xl font-extrabold text-gray-900 leading-tight line-clamp-2 md:line-clamp-3">
+                <h2 className="text-sm md:text-3xl lg:text-4xl xl:text-5xl font-extrabold text-gray-900 leading-tight line-clamp-2 md:line-clamp-3">
                   {slide.name}
                 </h2>
                 <p className="text-xs md:text-lg font-bold text-gray-900">
@@ -115,7 +115,7 @@ const HeroBanner = () => {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={slide.id}
-                  className="aspect-square md:h-[380px] lg:h-[460px] xl:h-[580px] md:aspect-auto rounded-xl bg-white border border-gray-100 flex items-center justify-center overflow-hidden p-2 md:p-6"
+                  className="aspect-square md:h-[280px] lg:h-[340px] xl:h-[420px] md:aspect-auto rounded-xl bg-white border border-gray-100 flex items-center justify-center overflow-hidden p-2 md:p-4"
                   initial={{ opacity: 0, scale: 0.92 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.92 }}

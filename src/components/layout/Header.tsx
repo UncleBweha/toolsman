@@ -53,15 +53,15 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
       {/* Main Header */}
-      <div className="container py-4">
+      <div className="container py-2.5 md:py-3">
         <div className="flex items-center justify-between gap-6">
           {/* Logo */}
           <Link to="/" className="flex-shrink-0 flex items-center">
-            <div className="flex flex-col leading-none">
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#1a1a2e]">
+            <div className="flex flex-col leading-none items-center">
+              <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-[#1a1a2e]">
                 TOOLS<span className="text-[#FF5722]">MAN</span>
               </h1>
-              <span className="text-[10px] md:text-xs font-semibold text-gray-400 uppercase tracking-widest">Online Store</span>
+              <span className="text-[9px] md:text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Online Store</span>
             </div>
           </Link>
 
@@ -208,7 +208,7 @@ const Header = () => {
       {/* Category Navigation - Desktop */}
       <nav className="hidden md:block border-t border-gray-100">
         <div className="container">
-          <div className="flex items-center h-12">
+          <div className="flex items-center h-10">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 text-gray-800 font-semibold hover:text-[#FF5722] transition-colors px-4 border-r border-gray-100 h-full">
