@@ -154,7 +154,11 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
   }
 
   if (src.startsWith("http")) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+    const localProxy = `${supabaseUrl}/functions/v1/proxy-image?url=${encodeURIComponent(src)}`;
+
     const proxies = [
+      localProxy,                                                       // Supabase Custom Proxy (with real browser headers)
       src,                                                              // direct
       `https://corsproxy.io/?${src}`,                                  // corsproxy
       `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`, // allorigins
@@ -170,11 +174,13 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
       } catch (err) {
         if (blobUrl) URL.revokeObjectURL(blobUrl);
         const urlObj = new URL(proxyUrl);
-        const name = urlObj.searchParams.get("url")
-          ? `allorigins (${new URL(urlObj.searchParams.get("url")!).hostname})`
-          : urlObj.hostname === new URL(src).hostname
-            ? "direct"
-            : urlObj.hostname;
+        const name = urlObj.pathname.includes("/proxy-image")
+          ? "supabase-proxy"
+          : urlObj.searchParams.get("url") && !urlObj.hostname.includes("supabase.co")
+            ? `allorigins (${new URL(urlObj.searchParams.get("url")!).hostname})`
+            : urlObj.hostname === new URL(src).hostname
+              ? "direct"
+              : urlObj.hostname;
         const msg = err instanceof Error ? err.message : String(err);
         throw new Error(`[${name}]: ${msg}`);
       }
@@ -272,7 +278,10 @@ export async function uploadWatermarkedBlob(
   blob: Blob,
   ext = "jpg",
 ): Promise<string> {
-  const path = `products/wm-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+  const rand = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).substring(2, 10);
+  const path = `products/wm-${Date.now()}-${rand}.${ext}`;
   const { error } = await supabase.storage
     .from("product-images")
     .upload(path, blob, { contentType: "image/jpeg", upsert: false });

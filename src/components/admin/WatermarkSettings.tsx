@@ -16,6 +16,10 @@ const WatermarkSettings = () => {
   const [progress, setProgress] = useState<string>("");
 
   const [errorLogs, setErrorLogs] = useState<string[]>([]);
+  const [testUrl, setTestUrl] = useState("");
+  const [testPreview, setTestPreview] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWatermark();
@@ -175,6 +179,22 @@ const WatermarkSettings = () => {
 
   const hasAsset = watermarkLogoUrl || fontExists;
 
+  const runWatermarkTest = async () => {
+    if (!testUrl.trim()) return;
+    setIsTesting(true);
+    setTestPreview(null);
+    setTestError(null);
+    try {
+      const blob = await watermarkUrl(testUrl.trim());
+      const objUrl = URL.createObjectURL(blob);
+      setTestPreview(objUrl);
+    } catch (err) {
+      setTestError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -199,7 +219,47 @@ const WatermarkSettings = () => {
         </CardContent>
       </Card>
 
-      {/* ── WATERMARK LOGO ───────────────────────────────────────────────── */}
+      {/* ── TEST WATERMARK ────────────────────────────────────────────────── */}
+      <Card className="border-amber-200 bg-amber-50/40 dark:border-amber-800 dark:bg-amber-950/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wand2 className="h-4 w-4" />
+            Test Watermark on Any Image
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Paste any external product image URL to preview exactly how the watermark will look — useful for diagnosing CORS or rendering issues.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={testUrl}
+              onChange={(e) => setTestUrl(e.target.value)}
+              placeholder="https://example.com/product.jpg"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <Button onClick={runWatermarkTest} disabled={isTesting || !testUrl.trim()} size="sm">
+              {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test"}
+            </Button>
+          </div>
+          {testError && (
+            <div className="text-xs text-red-600 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded p-2">
+              ❌ {testError}
+            </div>
+          )}
+          {testPreview && (
+            <div className="space-y-1">
+              <p className="text-xs text-green-700 dark:text-green-400 font-medium">✅ Watermark applied successfully — preview:</p>
+              <img
+                src={testPreview}
+                alt="Watermark preview"
+                className="max-h-64 max-w-full rounded border object-contain bg-white"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
