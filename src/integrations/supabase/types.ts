@@ -151,44 +151,71 @@ export type Database = {
         Row: {
           billing_address: Json | null
           created_at: string
+          etims_invoice_number: string | null
           id: string
+          is_pickup_order: boolean
+          kra_pin: string | null
           notes: string | null
           order_number: string
+          pickup_branch_id: string | null
+          pickup_branch_name: string | null
+          receipt_status: string | null
           shipping_address: Json | null
           shipping_cost: number | null
           status: string
           subtotal: number
+          tax_name: string | null
           total: number
           updated_at: string
           user_id: string | null
+          vat_amount: number
+          vat_enabled: boolean
         }
         Insert: {
           billing_address?: Json | null
           created_at?: string
+          etims_invoice_number?: string | null
           id?: string
+          is_pickup_order?: boolean
+          kra_pin?: string | null
           notes?: string | null
           order_number: string
+          pickup_branch_id?: string | null
+          pickup_branch_name?: string | null
+          receipt_status?: string | null
           shipping_address?: Json | null
           shipping_cost?: number | null
           status?: string
           subtotal: number
+          tax_name?: string | null
           total: number
           updated_at?: string
           user_id?: string | null
+          vat_amount?: number
+          vat_enabled?: boolean
         }
         Update: {
           billing_address?: Json | null
           created_at?: string
+          etims_invoice_number?: string | null
           id?: string
+          is_pickup_order?: boolean
+          kra_pin?: string | null
           notes?: string | null
           order_number?: string
+          pickup_branch_id?: string | null
+          pickup_branch_name?: string | null
+          receipt_status?: string | null
           shipping_address?: Json | null
           shipping_cost?: number | null
           status?: string
           subtotal?: number
+          tax_name?: string | null
           total?: number
           updated_at?: string
           user_id?: string | null
+          vat_amount?: number
+          vat_enabled?: boolean
         }
         Relationships: []
       }
