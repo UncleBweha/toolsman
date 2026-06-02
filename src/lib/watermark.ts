@@ -29,13 +29,21 @@ async function getWatermarkImage(): Promise<HTMLImageElement | null> {
     await new Promise<void>((resolve) => {
       img.onload  = () => { cachedWatermarkImg = img; resolve(); };
       img.onerror = () => {
-        // Fallback: try loading watermark via CORS proxy
-        const proxied = `https://corsproxy.io/?${encodeURIComponent(data.publicUrl)}`;
+        // Fallback 1: corsproxy.io (unencoded)
+        const proxy1 = `https://corsproxy.io/?${data.publicUrl}`;
         const retryImg = new Image();
         retryImg.crossOrigin = "anonymous";
         retryImg.onload = () => { cachedWatermarkImg = retryImg; resolve(); };
-        retryImg.onerror = () => resolve();
-        retryImg.src = proxied;
+        retryImg.onerror = () => {
+          // Fallback 2: allorigins.win (encoded)
+          const proxy2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(data.publicUrl)}`;
+          const retryImg2 = new Image();
+          retryImg2.crossOrigin = "anonymous";
+          retryImg2.onload = () => { cachedWatermarkImg = retryImg2; resolve(); };
+          retryImg2.onerror = () => resolve();
+          retryImg2.src = proxy2;
+        };
+        retryImg.src = proxy1;
       };
       img.src = data.publicUrl + "?t=" + Date.now();
     });
@@ -119,14 +127,24 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.crossOrigin = "anonymous";
     img.onload  = () => resolve(img);
     img.onerror = () => {
-      // Retry via CORS proxy if it fails directly
-      if (!src.startsWith("https://corsproxy.io/?") && src.startsWith("http")) {
-        const proxied = `https://corsproxy.io/?${encodeURIComponent(src)}`;
-        const retryImg = new Image();
-        retryImg.crossOrigin = "anonymous";
-        retryImg.onload = () => resolve(retryImg);
-        retryImg.onerror = () => reject(new Error(`Failed to load image via proxy: ${src}`));
-        retryImg.src = proxied;
+      if (src.startsWith("http")) {
+        // Fallback 1: corsproxy.io (unencoded)
+        const proxy1 = `https://corsproxy.io/?${src}`;
+        const img1 = new Image();
+        img1.crossOrigin = "anonymous";
+        img1.onload = () => resolve(img1);
+        img1.onerror = () => {
+          // Fallback 2: allorigins.win (encoded)
+          const proxy2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`;
+          const img2 = new Image();
+          img2.crossOrigin = "anonymous";
+          img2.onload = () => resolve(img2);
+          img2.onerror = () => {
+            reject(new Error(`Failed to load image via all proxies: ${src}`));
+          };
+          img2.src = proxy2;
+        };
+        img1.src = proxy1;
       } else {
         reject(new Error(`Failed to load image: ${src}`));
       }
