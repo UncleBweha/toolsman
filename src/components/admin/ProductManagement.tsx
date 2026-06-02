@@ -977,8 +977,8 @@ const ProductManagement = () => {
             <TableHead>Product</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Price</TableHead>
-            <TableHead>Stock</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Visibility</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
