@@ -99,6 +99,7 @@ const WatermarkSettings = () => {
     let round = 0;
     let lastId = "";
     const newErrors: string[] = [];
+    const CONCURRENCY = 6; // process this many products in parallel
 
     try {
       while (true) {
@@ -111,47 +112,51 @@ const WatermarkSettings = () => {
           .order("id", { ascending: true })
           .limit(50);
 
-        if (lastId) {
-          query = query.gt("id", lastId);
-        }
+        if (lastId) query = query.gt("id", lastId);
 
         const { data: products, error } = await query;
         if (error) throw error;
         if (!products || products.length === 0) break;
 
-        for (const p of products) {
+        // Filter out already-watermarked (unless force) and set lastId
+        const toProcess = products.filter((p) => {
           lastId = p.id;
-          const url = p.image_url;
-          if (!url) {
-            totalSkipped++;
-            continue;
-          }
+          if (!p.image_url) { totalSkipped++; return false; }
+          if (!force && isAlreadyWatermarked(p.image_url)) { totalSkipped++; return false; }
+          return true;
+        });
 
-          if (!force && isAlreadyWatermarked(url)) {
-            totalSkipped++;
-            continue;
-          }
+        // Process in concurrent chunks of CONCURRENCY
+        for (let i = 0; i < toProcess.length; i += CONCURRENCY) {
+          const chunk = toProcess.slice(i, i + CONCURRENCY);
+          setProgress(`Batch ${round}: watermarking ${i + 1}–${Math.min(i + CONCURRENCY, toProcess.length)} of ${toProcess.length}...`);
 
-          try {
-            setProgress(`Batch ${round}: watermarking product ${p.id}...`);
-            const blob = await watermarkUrl(url);
-            const pubUrl = await uploadWatermarkedBlob(blob);
+          const results = await Promise.allSettled(
+            chunk.map(async (p) => {
+              const blob = await watermarkUrl(p.image_url!);
+              const pubUrl = await uploadWatermarkedBlob(blob);
+              const { error: updateErr } = await supabase
+                .from("products")
+                .update({ image_url: pubUrl })
+                .eq("id", p.id);
+              if (updateErr) throw updateErr;
+              return p.id;
+            })
+          );
 
-            const { error: updateErr } = await supabase
-              .from("products")
-              .update({ image_url: pubUrl })
-              .eq("id", p.id);
-
-            if (updateErr) throw updateErr;
-            totalProcessed++;
-          } catch (err) {
-            console.error(`Failed to watermark product ${p.id}:`, err);
-            const errMsg = err instanceof Error ? err.message : String(err);
-            if (newErrors.length < 5) {
-              newErrors.push(`Product ${p.id}: ${errMsg}`);
-              setErrorLogs([...newErrors]);
+          for (let j = 0; j < results.length; j++) {
+            const result = results[j];
+            if (result.status === "fulfilled") {
+              totalProcessed++;
+            } else {
+              totalFailed++;
+              const errMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+              console.error(`Failed product ${chunk[j].id}:`, errMsg);
+              if (newErrors.length < 5) {
+                newErrors.push(`Product ${chunk[j].id}: ${errMsg}`);
+                setErrorLogs([...newErrors]);
+              }
             }
-            totalFailed++;
           }
         }
 

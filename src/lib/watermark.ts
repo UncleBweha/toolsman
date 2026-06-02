@@ -120,50 +120,58 @@ async function compositeWatermark(
   });
 }
 
-// ── fetch image bytes and return a local blob: URL (no CORS taint on canvas) ─
+// ── fetch image bytes with timeout → local blob: URL (no CORS taint on canvas) ─
+const FETCH_TIMEOUT_MS = 6000;
+
 async function fetchAsBlob(url: string): Promise<string | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { mode: "cors" });
+    const res = await fetch(url, { mode: "cors", signal: ctrl.signal });
+    clearTimeout(timer);
     if (!res.ok) return null;
     const blob = await res.blob();
     if (!blob.type.startsWith("image/")) return null;
     return URL.createObjectURL(blob);
   } catch {
+    clearTimeout(timer);
     return null;
   }
 }
 
-// ── load any image respecting CORS ───────────────────────────────────────────
+// ── load any image — races all proxies simultaneously for max speed ───────────
 async function loadImage(src: string): Promise<HTMLImageElement> {
-  // For blob/data URLs — load directly, no CORS needed
+  // blob/data URLs — load directly, no CORS needed
   if (src.startsWith("blob:") || src.startsWith("data:")) {
     return loadImgElement(src);
   }
 
   if (src.startsWith("http")) {
-    // Try a chain of fetch()-based strategies; each converts to a local blob:
-    // URL which the canvas can draw without CORS taint, regardless of server headers.
+    // Race all proxy strategies concurrently — first winner is used.
+    // Each converts bytes to a local blob: URL, so the canvas is never tainted.
     const proxies = [
       src,                                                              // direct
-      `https://corsproxy.io/?${src}`,                                  // corsproxy (unencoded)
+      `https://corsproxy.io/?${src}`,                                  // corsproxy
       `https://api.allorigins.win/raw?url=${encodeURIComponent(src)}`, // allorigins
       `https://thingproxy.freeboard.io/fetch/${src}`,                  // thingproxy
     ];
 
-    for (const proxyUrl of proxies) {
+    const racers = proxies.map(async (proxyUrl) => {
       const blobUrl = await fetchAsBlob(proxyUrl);
-      if (blobUrl) {
-        try {
-          const img = await loadImgElement(blobUrl);
-          // keep blobUrl alive — caller owns it; revoke after compositeWatermark
-          return img;
-        } catch {
-          URL.revokeObjectURL(blobUrl);
-        }
+      if (!blobUrl) throw new Error("no blob");
+      try {
+        return await loadImgElement(blobUrl);
+      } catch {
+        URL.revokeObjectURL(blobUrl);
+        throw new Error("img load failed");
       }
-    }
+    });
 
-    throw new Error(`Failed to load image via all proxies: ${src}`);
+    try {
+      return await Promise.any(racers);
+    } catch {
+      throw new Error(`Failed to load image via all proxies: ${src}`);
+    }
   }
 
   return loadImgElement(src);
@@ -172,7 +180,6 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
 function loadImgElement(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    // blob: URLs don't need crossOrigin; adding it can break them in some browsers
     if (!src.startsWith("blob:")) img.crossOrigin = "anonymous";
     img.onload  = () => resolve(img);
     img.onerror = () => reject(new Error(`Image element failed to load: ${src}`));
