@@ -354,7 +354,7 @@ const BulkProductImport = () => {
         price: product.price,
         original_price: product.original_price || null,
         sku: product.sku || null,
-        stock_quantity: product.stock_quantity || 0,
+        stock_quantity: 9999,
         category_id: categoryId || null,
         image_url: product.image_url || null,
         images: (product.images || []).filter(Boolean),
@@ -540,17 +540,19 @@ const BulkProductImport = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[60px]">Row</TableHead>
                     <TableHead className="w-[50px]">Status</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead>Price</TableHead>
-                    <TableHead>Stock</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Error</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {products.slice(0, 50).map((product, index) => (
                     <TableRow key={index}>
+                      <TableCell className="text-xs text-muted-foreground">{product.rowIndex ?? index + 2}</TableCell>
                       <TableCell>
                         {product.status === "success" && (
                           <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -568,7 +570,7 @@ const BulkProductImport = () => {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.sku || "-"}</TableCell>
                       <TableCell>{formatPrice(product.price)}</TableCell>
-                      <TableCell>{product.stock_quantity}</TableCell>
+                      <TableCell className="text-xs">{product.sub_category || product.category || "-"}</TableCell>
                       <TableCell className={product.status === "duplicate" ? "text-orange-600 text-sm" : "text-red-600 text-sm"}>
                         {product.error}
                       </TableCell>
@@ -590,7 +592,7 @@ const BulkProductImport = () => {
         <h3 className="font-semibold mb-3">Import Guidelines</h3>
         <ul className="text-sm text-muted-foreground space-y-2">
           <li>• <strong>Required fields:</strong> name, price (in Kshs)</li>
-          <li>• <strong>Optional fields:</strong> description, original_price, sku, stock_quantity, category, sub_category, brand, tags, key_features, image_url</li>
+          <li>• <strong>Optional fields:</strong> description, original_price, sku, category, sub_category, brand, tags, key_features, image_url, image_url_2…image_url_5</li>
           <li>• <strong>Price format:</strong> Enter prices in Kshs (e.g., 9999 for Kshs 9,999)</li>
           <li>• <strong>Category & Sub Category:</strong> Use dropdowns in the template - they automatically populate from your website</li>
           <li>• <strong>Sub Category:</strong> Will automatically filter based on selected category</li>
