@@ -1,372 +1,230 @@
+// process-product-image — Supabase Edge Function
+// Accepts a file upload (multipart) or an image URL (JSON) and returns a
+// watermarked version stored in the product-images bucket.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import webpDecode, { init as initWebpDecode } from "https://esm.sh/@jsquash/webp@1.2.0/decode";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Rate limiting: simple in-memory tracker (increased significantly to avoid blocking bulk imports)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 1000; // max requests per window
-const RATE_WINDOW_MS = 60_000; // 1 minute
-
-function checkRateLimit(key: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT) return false;
-  entry.count++;
-  return true;
-}
-
-// Allowed MIME types and max size
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
 
+// ── watermark compositor ─────────────────────────────────────────────────────
 async function applyWatermark(
-  Image: any,
   imageBuffer: Uint8Array,
   mimeType: string,
-  watermarkBuffer: Uint8Array | null
-): Promise<{ buffer: Uint8Array; mimeType: string; watermarked: boolean }> {
+  watermarkBuffer: Uint8Array,
+  fontBuffer: Uint8Array | null,
+): Promise<{ buffer: Uint8Array; mime: string }> {
+  // Dynamic import — only ImageScript, proven Deno-compatible
+  const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
+
+  // Decode main image — WebP will throw; we catch it below
+  let main: InstanceType<typeof Image>;
   try {
-    let mainImage: any;
-    
-    // Decode image (handle WebP specifically using @jsquash/webp)
-    if (mimeType === "image/webp" || mimeType.includes("webp")) {
+    main = await Image.decode(imageBuffer);
+  } catch {
+    // ImageScript cannot decode WebP natively — return original
+    console.warn("Cannot decode image (may be WebP), returning original");
+    return { buffer: imageBuffer, mime: mimeType };
+  }
+
+  // ── 1. Try logo watermark (watermark.png from storage) ────────────────────
+  try {
+    const wm = await Image.decode(watermarkBuffer);
+
+    // Scale logo to 35 % of image width (min 120 px)
+    const targetW = Math.max(120, Math.floor(main.width * 0.35));
+    const scale   = targetW / wm.width;
+    const targetH = Math.max(20, Math.floor(wm.height * scale));
+    wm.resize(targetW, targetH);
+
+    // 30 % opacity — subtle but visible
+    wm.opacity(0.30);
+
+    // Center horizontally, 60 % of the way down
+    const x = Math.floor((main.width  - targetW) / 2);
+    const y = Math.floor( main.height * 0.60 - targetH / 2);
+
+    main.composite(wm, x, y);
+    console.log(`Logo watermark applied at (${x}, ${y}), size ${targetW}×${targetH}`);
+  } catch (logoErr) {
+    console.warn("Logo watermark failed:", logoErr);
+
+    // ── 2. Fallback — elegant text "TOOLSMAN" with Cinzel font ──────────────
+    if (fontBuffer) {
       try {
-        const wasmRes = await fetch("https://unpkg.com/@jsquash/webp@1.2.0/codec/dec/webp_dec.wasm");
-        if (!wasmRes.ok) throw new Error("Failed to fetch WebP Wasm");
-        const wasmBuf = await wasmRes.arrayBuffer();
-        await initWebpDecode(wasmBuf);
-        
-        const decoded = await webpDecode(imageBuffer);
-        mainImage = new Image(decoded.width, decoded.height);
-        mainImage.bitmap.set(new Uint8Array(decoded.data.buffer));
-      } catch (webpErr) {
-        console.warn("WebP decoding failed, falling back to ImageScript:", webpErr);
-        mainImage = await Image.decode(imageBuffer);
+        const fontSize = Math.min(110, Math.max(22, Math.floor(main.width * 0.065)));
+
+        // Dark drop-shadow layer (offset 2 % of font size, ~33 % opacity)
+        const shadowImg = await Image.renderText(fontBuffer, fontSize, "TOOLSMAN", 0x00000055);
+        // Gold/beige layer (#d4c3a3 at ~80 % opacity = CC)
+        const goldImg   = await Image.renderText(fontBuffer, fontSize, "TOOLSMAN", 0xd4c3a3cc);
+
+        const x      = Math.floor((main.width  - goldImg.width) / 2);
+        const y      = Math.floor( main.height * 0.60 - goldImg.height / 2);
+        const offset = Math.max(1, Math.floor(fontSize * 0.04));
+
+        main.composite(shadowImg, x + offset, y + offset);
+        main.composite(goldImg,   x,          y);
+        console.log(`Text watermark applied at (${x}, ${y}), fontSize ${fontSize}`);
+      } catch (textErr) {
+        console.warn("Text watermark also failed — saving without watermark:", textErr);
       }
     } else {
-      mainImage = await Image.decode(imageBuffer);
+      console.warn("No font available for text watermark — saving without watermark");
     }
-
-    if (!mainImage) {
-      throw new Error("Failed to decode product image");
-    }
-
-    let watermarked = false;
-
-    // 1. Try custom logo watermark first
-    if (watermarkBuffer) {
-      try {
-        const wmImg = await Image.decode(watermarkBuffer);
-        // Scale to 35% of main image width (centered, elegant, gold-style)
-        const targetWidth = Math.max(150, Math.floor(mainImage.width * 0.35));
-        const scale = targetWidth / wmImg.width;
-        const targetHeight = Math.max(30, Math.floor(wmImg.height * scale));
-        wmImg.resize(targetWidth, targetHeight);
-        
-        // Center horizontally, lower-middle section (60% down)
-        const x = Math.floor((mainImage.width - targetWidth) / 2);
-        const y = Math.floor(mainImage.height * 0.60 - targetHeight / 2);
-        
-        wmImg.opacity(0.30); // Subtle opacity to keep details visible but watermark readable
-        mainImage.composite(wmImg, x, y);
-        watermarked = true;
-      } catch (logoErr) {
-        console.warn("Uploaded watermark.png decoding failed, falling back to text:", logoErr);
-      }
-    }
-
-    // 2. Fallback to elegant gold serif text "TOOLSMAN" if logo failed or not provided
-    if (!watermarked) {
-      try {
-        const fontRes = await fetch("https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel-Medium.ttf");
-        if (!fontRes.ok) throw new Error("Font fetch failed");
-        const fontData = new Uint8Array(await fontRes.arrayBuffer());
-        
-        const fontSize = Math.min(120, Math.max(24, Math.floor(mainImage.width * 0.065)));
-        
-        const shadowImg = await Image.renderText(fontData, fontSize, "TOOLSMAN", 0x00000055); // 33% black shadow
-        const goldImg = await Image.renderText(fontData, fontSize, "TOOLSMAN", 0xd4c3a3cc); // 80% gold/beige (#d4c3a3)
-        
-        const x = Math.floor((mainImage.width - goldImg.width) / 2);
-        const y = Math.floor(mainImage.height * 0.60 - goldImg.height / 2);
-        
-        const offset = Math.max(1, Math.floor(fontSize * 0.04));
-        mainImage.composite(shadowImg, x + offset, y + offset);
-        mainImage.composite(goldImg, x, y);
-        watermarked = true;
-      } catch (textErr) {
-        console.warn("Text watermarking failed, skipping watermark:", textErr);
-      }
-    }
-
-    // Re-encode image (optimize WebP/PNG/JPEG)
-    let finalBuffer = imageBuffer;
-    let finalMimeType = mimeType;
-    
-    if (watermarked) {
-      if (mimeType === "image/png") {
-        finalBuffer = await mainImage.encode();
-      } else {
-        // Default to JPEG @ 85 quality to keep size small
-        finalBuffer = await mainImage.encodeJPEG(85);
-        finalMimeType = "image/jpeg";
-      }
-    }
-    
-    return { buffer: finalBuffer, mimeType: finalMimeType, watermarked };
-  } catch (err) {
-    console.error("Watermark processing failed, keeping original:", err);
-    return { buffer: imageBuffer, mimeType, watermarked: false };
   }
+
+  // Re-encode: PNG stays PNG, everything else → JPEG 85 %
+  if (mimeType === "image/png") {
+    return { buffer: await main.encode(), mime: "image/png" };
+  }
+  return { buffer: await main.encodeJPEG(85), mime: "image/jpeg" };
 }
 
+// ── handler ──────────────────────────────────────────────────────────────────
 serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const respond = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   try {
-    // Auth check
+    // Auth
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return respond({ error: "Missing authorization" }, 401);
 
-    const supabase = createClient(
+    const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) return respond({ error: "Unauthorized" }, 401);
+
+    const { data: roleRow } = await userClient
+      .from("user_roles").select("role")
+      .eq("user_id", user.id).eq("role", "admin").maybeSingle();
+    if (!roleRow) return respond({ error: "Admin access required" }, 403);
+
+    const service = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Verify user is admin
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (!roleData) {
-      return new Response(JSON.stringify({ error: "Admin access required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Rate limit check
-    if (!checkRateLimit(user.id)) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again shortly." }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Parse request
-    const contentType = req.headers.get("content-type") || "";
+    // ── Parse image input ──────────────────────────────────────────────────
+    const ct = req.headers.get("content-type") || "";
     let imageBuffer: Uint8Array;
     let fileName: string;
     let mimeType: string;
 
-    if (contentType.includes("multipart/form-data")) {
-      // File upload
-      const formData = await req.formData();
-      const file = formData.get("image") as File;
-      if (!file) {
-        return new Response(JSON.stringify({ error: "No image file provided" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    if (ct.includes("multipart/form-data")) {
+      const form = await req.formData();
+      const file = form.get("image") as File | null;
+      if (!file) return respond({ error: "No image file provided" }, 400);
 
-      // Validate file type
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        return new Response(JSON.stringify({ error: `Invalid file type: ${file.type}. Allowed: ${ALLOWED_TYPES.join(", ")}` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Validate file size
-      if (file.size > MAX_FILE_SIZE) {
-        return new Response(JSON.stringify({ error: `File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      mimeType = file.type || "image/jpeg";
+      if (!ALLOWED_TYPES.includes(mimeType))
+        return respond({ error: `Unsupported type: ${mimeType}` }, 400);
+      if (file.size > MAX_FILE_SIZE)
+        return respond({ error: "File too large (max 15 MB)" }, 400);
 
       imageBuffer = new Uint8Array(await file.arrayBuffer());
-      fileName = file.name;
-      mimeType = file.type;
+      fileName    = file.name;
     } else {
-      // JSON body with image URL
       const body = await req.json();
-      const imageUrl = body.image_url;
-      if (!imageUrl) {
-        return new Response(JSON.stringify({ error: "No image_url provided" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      const imageUrl: string = body.image_url;
+      if (!imageUrl) return respond({ error: "No image_url provided" }, 400);
 
-      // If already watermarked, return immediately
-      if (imageUrl.includes("/products/wm-")) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            url: imageUrl,
-            watermarked: false,
-          }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
+      // Already watermarked — skip
+      if (imageUrl.includes("/products/wm-"))
+        return respond({ success: true, url: imageUrl, watermarked: false });
 
-      // Fetch image from URL
       const imgRes = await fetch(imageUrl);
-      if (!imgRes.ok) {
-        return new Response(JSON.stringify({ error: `Failed to fetch image from URL: ${imageUrl}` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!imgRes.ok)
+        return respond({ error: `Failed to fetch image (${imgRes.status})` }, 400);
 
-      mimeType = imgRes.headers.get("content-type") || "image/jpeg";
-      // Allow fallback if mimetype detection fails
-      if (mimeType === "application/octet-stream" || !mimeType) {
-        if (imageUrl.endsWith(".png")) mimeType = "image/png";
-        else if (imageUrl.endsWith(".webp")) mimeType = "image/webp";
-        else mimeType = "image/jpeg";
+      mimeType = (imgRes.headers.get("content-type") || "").split(";")[0].trim() || "image/jpeg";
+      // Guess from URL extension when server returns generic type
+      if (!mimeType || mimeType === "application/octet-stream") {
+        const ext = imageUrl.split("?")[0].split(".").pop()?.toLowerCase() || "";
+        mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
       }
-
-      if (!ALLOWED_TYPES.includes(mimeType)) {
-        return new Response(JSON.stringify({ error: `Invalid image type from URL: ${mimeType}` }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!ALLOWED_TYPES.includes(mimeType))
+        return respond({ error: `Unsupported image type: ${mimeType}` }, 400);
 
       imageBuffer = new Uint8Array(await imgRes.arrayBuffer());
-      if (imageBuffer.length > MAX_FILE_SIZE) {
-        return new Response(JSON.stringify({ error: "Image from URL is too large" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (imageBuffer.length > MAX_FILE_SIZE)
+        return respond({ error: "Image from URL too large (max 15 MB)" }, 400);
+
+      const parts = imageUrl.split("?")[0].split("/");
+      fileName = parts[parts.length - 1] || "image.jpg";
+    }
+
+    // ── Fetch watermark assets from storage ───────────────────────────────
+    let watermarkBuffer: Uint8Array = new Uint8Array(0);
+    let fontBuffer: Uint8Array | null = null;
+
+    const { data: wmBlob, error: wmErr } = await service.storage
+      .from("system-assets").download("watermark.png");
+    if (!wmErr && wmBlob) {
+      watermarkBuffer = new Uint8Array(await wmBlob.arrayBuffer());
+      console.log("watermark.png loaded, size:", watermarkBuffer.length);
+    } else {
+      console.warn("watermark.png not found — will try text watermark");
+      // Try loading Cinzel font stored in system-assets
+      const { data: fontBlob, error: fontErr } = await service.storage
+        .from("system-assets").download("cinzel-font.ttf");
+      if (!fontErr && fontBlob) {
+        fontBuffer = new Uint8Array(await fontBlob.arrayBuffer());
+        console.log("cinzel-font.ttf loaded, size:", fontBuffer.length);
       }
-
-      const urlParts = imageUrl.split("/");
-      fileName = urlParts[urlParts.length - 1]?.split("?")[0] || "image.jpg";
     }
 
-    // Generate unique file path
-    const ext = fileName.split(".").pop() || "jpg";
-    const timestamp = Date.now();
-    const randomId = crypto.randomUUID().slice(0, 8);
-    const storagePath = `products/wm-${timestamp}-${randomId}.${ext}`;
-
-    // Use service role client for storage upload
-    const serviceClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
-    // Fetch custom watermark image if present
-    let watermarkBuffer: Uint8Array | null = null;
-    const { data: watermarkData, error: watermarkError } = await serviceClient.storage
-      .from("system-assets")
-      .download("watermark.png");
-
-    if (!watermarkError && watermarkData) {
-      watermarkBuffer = new Uint8Array(await watermarkData.arrayBuffer());
+    if (watermarkBuffer.length === 0 && !fontBuffer) {
+      console.warn("No watermark assets available — uploading original image");
     }
 
-    // Import ImageScript dynamically
-    const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
+    // ── Apply watermark ────────────────────────────────────────────────────
+    const { buffer: finalBuffer, mime: finalMime } = watermarkBuffer.length > 0 || fontBuffer
+      ? await applyWatermark(imageBuffer, mimeType, watermarkBuffer, fontBuffer)
+      : { buffer: imageBuffer, mime: mimeType };
 
-    // Apply watermark logic
-    const { buffer: finalBuffer, mimeType: finalMimeType, watermarked } = await applyWatermark(
-      Image,
-      imageBuffer,
-      mimeType,
-      watermarkBuffer
-    );
+    const watermarked = finalBuffer !== imageBuffer;
 
-    // Upload to storage
-    const { error: uploadError } = await serviceClient.storage
+    // ── Upload to storage ──────────────────────────────────────────────────
+    const ext       = finalMime === "image/png" ? "png" : "jpg";
+    const path      = `products/wm-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+    const { error: upErr } = await service.storage
       .from("product-images")
-      .upload(storagePath, finalBuffer, {
-        contentType: finalMimeType,
-        upsert: false,
-      });
+      .upload(path, finalBuffer, { contentType: finalMime, upsert: false });
 
-    if (uploadError) {
-      return new Response(JSON.stringify({ error: "Failed to upload image: " + uploadError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (upErr) return respond({ error: "Upload failed: " + upErr.message }, 500);
 
-    // Get public URL
-    const { data: urlData } = serviceClient.storage
-      .from("product-images")
-      .getPublicUrl(storagePath);
+    const { data: urlData } = service.storage.from("product-images").getPublicUrl(path);
 
-    // Log the action
+    // Audit log (best-effort)
     try {
-      await serviceClient.from("admin_audit_log").insert({
-        admin_id: user.id,
-        action: "upload_product_image",
+      await service.from("admin_audit_log").insert({
+        admin_id:    user.id,
+        action:      "upload_product_image",
         entity_type: "product_image",
-        entity_id: storagePath,
-        details: { fileName, mimeType: finalMimeType, size: finalBuffer.length, watermarked },
+        entity_id:   path,
+        details:     { fileName, mimeType: finalMime, size: finalBuffer.length, watermarked },
       });
-    } catch (_logErr) {
-      // Audit log table may not exist — ignore silently
-    }
+    } catch { /* table may not exist */ }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        url: urlData.publicUrl,
-        path: storagePath,
-        size: finalBuffer.length,
-        watermarked,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return respond({ success: true, url: urlData.publicUrl, path, size: finalBuffer.length, watermarked });
+
   } catch (err) {
-    console.error("process-product-image error:", err);
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Internal server error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    console.error("process-product-image fatal:", err);
+    return respond({ error: err instanceof Error ? err.message : "Internal server error" }, 500);
   }
 });
