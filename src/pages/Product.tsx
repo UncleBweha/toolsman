@@ -384,15 +384,9 @@ const Product = () => {
             )}
 
             <div className="flex items-center gap-6 py-1 flex-wrap">
-              {product.stock_quantity !== null && product.stock_quantity > 0 ? (
-                <div className="flex items-center gap-1.5 text-green-600 text-sm font-semibold">
-                  <Check className="h-4 w-4" /> In Stock
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-red-600 text-sm font-semibold">
-                  Out of Stock
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 text-green-600 text-sm font-semibold">
+                <Check className="h-4 w-4" /> In Stock
+              </div>
               <div className="flex items-center gap-1.5 text-gray-700 text-sm font-medium">
                 <Truck className="h-4 w-4" /> Nationwide Delivery
               </div>
@@ -415,7 +409,9 @@ const Product = () => {
                   size="icon"
                   className="h-8 w-8 rounded-none border-l border-gray-300 hover:bg-gray-50 text-gray-600"
                   onClick={() => setQuantity(quantity + 1)}
-                  disabled={product.stock_quantity !== null && quantity >= product.stock_quantity}
+                </Button>
+              </div>
+            </div>
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
