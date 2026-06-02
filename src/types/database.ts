@@ -39,7 +39,7 @@ export interface Product {
   tags?: string[];
   generated_tags?: string[];   // auto-extracted NLP tags
   key_features?: string[];
-  status?: 'active' | 'draft' | 'out_of_stock';
+  status?: string | null;
   is_featured: boolean;
   is_active: boolean;
   seo_title?: string | null;
@@ -76,7 +76,7 @@ export interface Order {
   kra_pin?: string | null;
   tax_name?: string | null;
   etims_invoice_number?: string | null;
-  receipt_status?: 'pending' | 'generated' | 'sent' | 'failed';
+  receipt_status?: string | null;
   created_at: string;
   updated_at: string;
 }
