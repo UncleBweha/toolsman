@@ -161,50 +161,25 @@ const ProductManagement = () => {
     else setIsUploadingAdditional(true);
 
     try {
-      let uploadedUrl: string | null = null;
+      const formDataUpload = new FormData();
+      formDataUpload.append("image", file);
+      const { data, error } = await supabase.functions.invoke("process-product-image", {
+        body: formDataUpload,
+      });
+      if (error) throw new Error(error.message || String(error));
+      if (!data?.url) throw new Error("No URL returned from watermarking engine");
 
-      // Try edge function first (adds watermark)
-      try {
-        const formDataUpload = new FormData();
-        formDataUpload.append("image", file);
-        const { data, error } = await supabase.functions.invoke("process-product-image", {
-          body: formDataUpload,
-        });
-        if (error) {
-          console.warn("Edge function error (falling back to direct upload):", error.message || error);
-        } else if (data?.url) {
-          uploadedUrl = data.url;
-          if (data.watermarked === false) {
-            toast.info("Image uploaded without watermark — ensure watermark.png is in system-assets bucket");
-          }
-        }
-      } catch (edgeFnErr) {
-        console.warn("Edge function unavailable (falling back to direct upload):", edgeFnErr);
-      }
+      const uploadedUrl = data.url;
 
-      // Fallback: upload directly to Supabase Storage
-      if (!uploadedUrl) {
-        const ext = file.name.split(".").pop() || "jpg";
-        const path = `products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: storageError } = await supabase.storage
-          .from("product-images")
-          .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-        if (storageError) throw storageError;
-        const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
-        uploadedUrl = urlData.publicUrl;
+      if (isPrimary) {
+        setFormData((prev) => ({ ...prev, image_url: uploadedUrl }));
+      } else {
+        setFormData((prev) => ({ ...prev, images: [...prev.images, uploadedUrl] }));
       }
-
-      if (uploadedUrl) {
-        if (isPrimary) {
-          setFormData((prev) => ({ ...prev, image_url: uploadedUrl! }));
-        } else {
-          setFormData((prev) => ({ ...prev, images: [...prev.images, uploadedUrl!] }));
-        }
-        toast.success("Image uploaded successfully");
-      }
+      toast.success("Image uploaded and watermarked successfully");
     } catch (err) {
       console.error("Upload error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to upload image. Please try again.");
+      toast.error(`Watermark upload failed: ${err instanceof Error ? err.message : "Internal error"}`);
     } finally {
       if (isPrimary) setIsUploading(false);
       else setIsUploadingAdditional(false);

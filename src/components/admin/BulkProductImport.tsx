@@ -347,6 +347,38 @@ const BulkProductImport = () => {
         }
       }
 
+      // Watermark the primary image URL before saving
+      let finalImageUrl = product.image_url || null;
+      if (finalImageUrl && !finalImageUrl.includes("/products/wm-")) {
+        try {
+          const { data: wmData, error: wmErr } = await supabase.functions.invoke("process-product-image", {
+            body: { image_url: finalImageUrl },
+          });
+          if (!wmErr && wmData?.url) {
+            finalImageUrl = wmData.url;
+          }
+        } catch {
+          // Non-fatal: keep original URL if watermarking fails
+        }
+      }
+
+      // Watermark additional images
+      const finalImages: string[] = [];
+      for (const imgUrl of (product.images || []).filter(Boolean)) {
+        if (imgUrl.includes("/products/wm-")) {
+          finalImages.push(imgUrl);
+          continue;
+        }
+        try {
+          const { data: wmData, error: wmErr } = await supabase.functions.invoke("process-product-image", {
+            body: { image_url: imgUrl },
+          });
+          finalImages.push(!wmErr && wmData?.url ? wmData.url : imgUrl);
+        } catch {
+          finalImages.push(imgUrl);
+        }
+      }
+
       const { data: inserted, error } = await supabase.from("products").insert({
         name: product.name,
         slug: product.slug || generateSlug(product.name),
@@ -356,8 +388,8 @@ const BulkProductImport = () => {
         sku: product.sku || null,
         stock_quantity: 9999,
         category_id: categoryId || null,
-        image_url: product.image_url || null,
-        images: (product.images || []).filter(Boolean),
+        image_url: finalImageUrl,
+        images: finalImages,
         brand: product.brand || null,
         tags: product.tags ? product.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
         key_features: product.key_features ? product.key_features.split(",").map(f => f.trim()).filter(Boolean) : [],
