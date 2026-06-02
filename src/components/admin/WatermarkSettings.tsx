@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Upload, Image as ImageIcon, Wand2, Type, AlertTriangle } from "lucide-react";
-import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked } from "@/lib/watermark";
+import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, resetWatermarkCache } from "@/lib/watermark";
 
 const WatermarkSettings = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -55,6 +55,7 @@ const WatermarkSettings = () => {
       if (error) throw error;
       toast.success("Watermark logo uploaded successfully");
       fetchWatermark();
+      resetWatermarkCache();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {

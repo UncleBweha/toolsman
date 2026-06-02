@@ -28,7 +28,15 @@ async function getWatermarkImage(): Promise<HTMLImageElement | null> {
 
     await new Promise<void>((resolve) => {
       img.onload  = () => { cachedWatermarkImg = img; resolve(); };
-      img.onerror = () => resolve(); // graceful fail
+      img.onerror = () => {
+        // Fallback: try loading watermark via CORS proxy
+        const proxied = `https://corsproxy.io/?${encodeURIComponent(data.publicUrl)}`;
+        const retryImg = new Image();
+        retryImg.crossOrigin = "anonymous";
+        retryImg.onload = () => { cachedWatermarkImg = retryImg; resolve(); };
+        retryImg.onerror = () => resolve();
+        retryImg.src = proxied;
+      };
       img.src = data.publicUrl + "?t=" + Date.now();
     });
   } catch {
@@ -110,7 +118,19 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload  = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.onerror = () => {
+      // Retry via CORS proxy if it fails directly
+      if (!src.startsWith("https://corsproxy.io/?") && src.startsWith("http")) {
+        const proxied = `https://corsproxy.io/?${encodeURIComponent(src)}`;
+        const retryImg = new Image();
+        retryImg.crossOrigin = "anonymous";
+        retryImg.onload = () => resolve(retryImg);
+        retryImg.onerror = () => reject(new Error(`Failed to load image via proxy: ${src}`));
+        retryImg.src = proxied;
+      } else {
+        reject(new Error(`Failed to load image: ${src}`));
+      }
+    };
     img.src = src;
   });
 }
@@ -141,6 +161,25 @@ export async function watermarkFile(
   }
 }
 
+function getAbsoluteImageUrl(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  let cleanPath = url;
+  if (cleanPath.startsWith("/")) {
+    cleanPath = cleanPath.substring(1);
+  }
+
+  const storagePrefix = "storage/v1/object/public/product-images/";
+  if (cleanPath.startsWith(storagePrefix)) {
+    cleanPath = cleanPath.substring(storagePrefix.length);
+  }
+
+  const { data } = supabase.storage.from("product-images").getPublicUrl(cleanPath);
+  return data.publicUrl;
+}
+
 /**
  * Watermark an image already accessible via URL.
  * Returns the watermarked Blob.
@@ -149,8 +188,9 @@ export async function watermarkFile(
 export async function watermarkUrl(
   imageUrl: string,
 ): Promise<Blob> {
+  const absoluteUrl = getAbsoluteImageUrl(imageUrl);
   const [srcImg, wmImg] = await Promise.all([
-    loadImage(imageUrl),
+    loadImage(absoluteUrl),
     getWatermarkImage(),
   ]);
   return compositeWatermark(srcImg, wmImg);
