@@ -123,19 +123,26 @@ async function compositeWatermark(
 // ── fetch image bytes with timeout → local blob: URL (no CORS taint on canvas) ─
 const FETCH_TIMEOUT_MS = 6000;
 
-async function fetchAsBlob(url: string): Promise<string | null> {
+async function fetchAsBlob(url: string): Promise<string> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, { mode: "cors", signal: ctrl.signal });
     clearTimeout(timer);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    }
     const blob = await res.blob();
-    if (!blob.type.startsWith("image/")) return null;
+    if (!blob.type.startsWith("image/")) {
+      throw new Error(`Content type ${blob.type} is not an image`);
+    }
     return URL.createObjectURL(blob);
-  } catch {
+  } catch (err) {
     clearTimeout(timer);
-    return null;
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Request timed out (6s)");
+    }
+    throw err;
   }
 }
 
@@ -147,8 +154,6 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
   }
 
   if (src.startsWith("http")) {
-    // Race all proxy strategies concurrently — first winner is used.
-    // Each converts bytes to a local blob: URL, so the canvas is never tainted.
     const proxies = [
       src,                                                              // direct
       `https://corsproxy.io/?${src}`,                                  // corsproxy
@@ -157,20 +162,30 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
     ];
 
     const racers = proxies.map(async (proxyUrl) => {
-      const blobUrl = await fetchAsBlob(proxyUrl);
-      if (!blobUrl) throw new Error("no blob");
+      let blobUrl = "";
       try {
-        return await loadImgElement(blobUrl);
-      } catch {
-        URL.revokeObjectURL(blobUrl);
-        throw new Error("img load failed");
+        blobUrl = await fetchAsBlob(proxyUrl);
+        const img = await loadImgElement(blobUrl);
+        return img;
+      } catch (err) {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        const urlObj = new URL(proxyUrl);
+        const name = urlObj.searchParams.get("url")
+          ? `allorigins (${new URL(urlObj.searchParams.get("url")!).hostname})`
+          : urlObj.hostname === new URL(src).hostname
+            ? "direct"
+            : urlObj.hostname;
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`[${name}]: ${msg}`);
       }
     });
 
     try {
       return await Promise.any(racers);
-    } catch {
-      throw new Error(`Failed to load image via all proxies: ${src}`);
+    } catch (err) {
+      const aggErr = err as any;
+      const details = aggErr.errors ? aggErr.errors.map((e: any) => e.message).join(" · ") : "Unknown error";
+      throw new Error(`Failed to load image via all proxies: ${details}`);
     }
   }
 
