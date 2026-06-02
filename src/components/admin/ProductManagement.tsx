@@ -50,7 +50,6 @@ interface ProductFormData {
   price: number;
   original_price: number | null;
   sku: string;
-  stock_quantity: number;
   category_id: string;
   subcategory_id: string;
   image_url: string;
@@ -70,7 +69,6 @@ const emptyFormData: ProductFormData = {
   price: 0,
   original_price: null,
   sku: "",
-  stock_quantity: 0,
   category_id: "",
   subcategory_id: "",
   image_url: "",
@@ -246,7 +244,7 @@ const ProductManagement = () => {
     const originalPrice = formData.original_price
       ? parseFloat(String(formData.original_price))
       : null;
-    const stockQty = parseInt(String(formData.stock_quantity), 10) || 0;
+    // Stock is no longer tracked — unlimited inventory model.
 
     // Handle slug uniqueness — on create, suffix with timestamp if collision
     let slug = formData.slug.trim();
@@ -284,7 +282,7 @@ const ProductManagement = () => {
       original_price: originalPrice,
       // Empty SKU must be null — non-null empty string violates UNIQUE constraint
       sku: formData.sku?.trim() || null,
-      stock_quantity: stockQty,
+      stock_quantity: 9999,
       category_id: finalCategoryId,
       image_url: formData.image_url || null,
       images: formData.images.filter(Boolean),
@@ -340,7 +338,7 @@ const ProductManagement = () => {
       price: product.price,
       original_price: product.original_price,
       sku: product.sku || "",
-      stock_quantity: product.stock_quantity,
+      // stock not tracked
       category_id: isSubcat ? (cat?.parent_id || "") : (product.category_id || ""),
       subcategory_id: isSubcat ? (product.category_id || "") : "",
       image_url: product.image_url || "",
@@ -715,7 +713,7 @@ const ProductManagement = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="price">Price (Kshs) *</Label>
                   <Input
@@ -733,15 +731,6 @@ const ProductManagement = () => {
                     type="number"
                     value={formData.original_price || ""}
                     onChange={(e) => setFormData({ ...formData, original_price: e.target.value ? parseInt(e.target.value) : null })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="stock_quantity">Stock</Label>
-                  <Input
-                    id="stock_quantity"
-                    type="number"
-                    value={formData.stock_quantity}
-                    onChange={(e) => setFormData({ ...formData, stock_quantity: parseInt(e.target.value) || 0 })}
                   />
                 </div>
               </div>
@@ -881,16 +870,18 @@ const ProductManagement = () => {
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
                   <Select
-                    value={formData.status}
-                    onValueChange={(value) => setFormData({ ...formData, status: value })}
+                    value={formData.is_active ? "active" : "inactive"}
+                    onValueChange={(value) => setFormData({ ...formData, is_active: value === "active", status: value === "active" ? "active" : "inactive" })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                      <SelectItem value="active">Active (available for purchase)</SelectItem>
+                      <SelectItem value="inactive">Inactive (not for sale)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                     </SelectContent>
                   </Select>
                 </div>
