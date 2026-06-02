@@ -249,6 +249,38 @@ const ProductManagement = () => {
       }
     }
 
+    // ── Watermark URLs before saving ──────────────────────────────────────
+    const needsWatermark = (url: string) =>
+      !!url && !url.includes("/products/wm-");
+
+    let finalImageUrl = formData.image_url || null;
+    if (finalImageUrl && needsWatermark(finalImageUrl)) {
+      try {
+        const { data: wmData, error: wmErr } = await supabase.functions.invoke(
+          "process-product-image",
+          { body: { image_url: finalImageUrl } }
+        );
+        if (!wmErr && wmData?.url) finalImageUrl = wmData.url;
+      } catch {
+        // non-fatal — save original URL if watermark fails
+      }
+    }
+
+    const finalImages: string[] = [];
+    for (const url of formData.images.filter(Boolean)) {
+      if (!needsWatermark(url)) { finalImages.push(url); continue; }
+      try {
+        const { data: wmData, error: wmErr } = await supabase.functions.invoke(
+          "process-product-image",
+          { body: { image_url: url } }
+        );
+        finalImages.push(!wmErr && wmData?.url ? wmData.url : url);
+      } catch {
+        finalImages.push(url);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     const productData = {
       name: formData.name.trim(),
       slug,
@@ -259,8 +291,8 @@ const ProductManagement = () => {
       sku: formData.sku?.trim() || null,
       stock_quantity: 9999,
       category_id: finalCategoryId,
-      image_url: formData.image_url || null,
-      images: formData.images.filter(Boolean),
+      image_url: finalImageUrl,
+      images: finalImages,
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
       key_features: formData.key_features
