@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Product, Category } from "@/types/database";
-import { watermarkFile, watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked } from "@/lib/watermark";
+import { watermarkFile, watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, watermarkProduct } from "@/lib/watermark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -245,28 +245,8 @@ const ProductManagement = () => {
       }
     }
 
-    // ── Watermark URLs client-side before saving ──────────────────────────
-    let finalImageUrl = formData.image_url || null;
-    if (finalImageUrl && !isAlreadyWatermarked(finalImageUrl)) {
-      try {
-        const blob = await watermarkUrl(finalImageUrl);
-        finalImageUrl = await uploadWatermarkedBlob(blob);
-      } catch {
-        // non-fatal — keep original URL if watermark fails (e.g. CORS)
-      }
-    }
-
-    const finalImages: string[] = [];
-    for (const url of formData.images.filter(Boolean)) {
-      if (isAlreadyWatermarked(url)) { finalImages.push(url); continue; }
-      try {
-        const blob = await watermarkUrl(url);
-        finalImages.push(await uploadWatermarkedBlob(blob));
-      } catch {
-        finalImages.push(url);
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────────
+    const rawImageUrl = formData.image_url || null;
+    const rawImages = formData.images.filter(Boolean);
 
     const productData = {
       name: formData.name.trim(),
@@ -278,8 +258,8 @@ const ProductManagement = () => {
       sku: formData.sku?.trim() || null,
       stock_quantity: 9999,
       category_id: finalCategoryId,
-      image_url: finalImageUrl,
-      images: finalImages,
+      image_url: rawImageUrl,
+      images: rawImages,
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
       key_features: formData.key_features
@@ -290,16 +270,25 @@ const ProductManagement = () => {
       is_active: formData.is_active,
     };
 
+    let savedProductId: string | null = null;
     let error;
     if (editingProduct) {
       const result = await supabase
         .from("products")
         .update(productData)
-        .eq("id", editingProduct.id);
+        .eq("id", editingProduct.id)
+        .select("id")
+        .single();
       error = result.error;
+      if (result.data) savedProductId = result.data.id;
     } else {
-      const result = await supabase.from("products").insert(productData);
+      const result = await supabase
+        .from("products")
+        .insert(productData)
+        .select("id")
+        .single();
       error = result.error;
+      if (result.data) savedProductId = result.data.id;
     }
 
     if (error) {
@@ -315,6 +304,13 @@ const ProductManagement = () => {
       setEditingProduct(null);
       setFormData(emptyFormData);
       fetchProducts();
+
+      // Trigger background watermarking so it doesn't block the UI save
+      if (savedProductId) {
+        watermarkProduct(savedProductId, rawImageUrl, rawImages, () => {
+          fetchProducts();
+        });
+      }
     }
     setIsSaving(false);
   };

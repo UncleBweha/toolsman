@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Category } from "@/types/database";
-import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked } from "@/lib/watermark";
+import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, watermarkProduct } from "@/lib/watermark";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -348,31 +348,8 @@ const BulkProductImport = () => {
         }
       }
 
-      // Watermark the primary image URL before saving client-side
-      let finalImageUrl = product.image_url || null;
-      if (finalImageUrl && !isAlreadyWatermarked(finalImageUrl)) {
-        try {
-          const blob = await watermarkUrl(finalImageUrl);
-          finalImageUrl = await uploadWatermarkedBlob(blob);
-        } catch {
-          // Non-fatal: keep original URL if watermarking fails
-        }
-      }
-
-      // Watermark additional images client-side
-      const finalImages: string[] = [];
-      for (const imgUrl of (product.images || []).filter(Boolean)) {
-        if (isAlreadyWatermarked(imgUrl)) {
-          finalImages.push(imgUrl);
-          continue;
-        }
-        try {
-          const blob = await watermarkUrl(imgUrl);
-          finalImages.push(await uploadWatermarkedBlob(blob));
-        } catch {
-          finalImages.push(imgUrl);
-        }
-      }
+      const rawImageUrl = product.image_url || null;
+      const rawImages = product.images || [];
 
       const { data: inserted, error } = await supabase.from("products").insert({
         name: product.name,
@@ -383,8 +360,8 @@ const BulkProductImport = () => {
         sku: product.sku || null,
         stock_quantity: 9999,
         category_id: categoryId || null,
-        image_url: finalImageUrl,
-        images: finalImages,
+        image_url: rawImageUrl,
+        images: rawImages,
         brand: product.brand || null,
         tags: product.tags ? product.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
         key_features: product.key_features ? product.key_features.split(",").map(f => f.trim()).filter(Boolean) : [],
@@ -398,7 +375,11 @@ const BulkProductImport = () => {
         errors.push({ row: product.rowIndex || i + 1, message: error.message });
       } else {
         updatedProducts[i] = { ...product, status: "success" };
-        if (inserted?.id) importedIds.push(inserted.id);
+        if (inserted?.id) {
+          importedIds.push(inserted.id);
+          // Trigger background watermarking so it doesn't block the import speed
+          watermarkProduct(inserted.id, rawImageUrl, rawImages);
+        }
         // Add to tracking sets to catch duplicates within the same batch
         if (product.sku) existingSkus.add(product.sku.toLowerCase());
         existingNames.add(product.name.toLowerCase());

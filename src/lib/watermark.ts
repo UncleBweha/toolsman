@@ -236,3 +236,63 @@ export async function uploadWatermarkedBlob(
 export function isAlreadyWatermarked(url: string): boolean {
   return url.includes("/products/wm-");
 }
+
+/**
+ * Watermark a product's images (primary and additional) in the background.
+ * Once completed, updates the product row in Supabase and triggers an optional callback.
+ */
+export async function watermarkProduct(
+  productId: string,
+  imageUrl: string | null,
+  images: string[],
+  onComplete?: () => void
+): Promise<void> {
+  let updatedImageUrl = imageUrl;
+  let hasChanges = false;
+
+  if (imageUrl && !isAlreadyWatermarked(imageUrl)) {
+    try {
+      const blob = await watermarkUrl(imageUrl);
+      const pubUrl = await uploadWatermarkedBlob(blob);
+      updatedImageUrl = pubUrl;
+      hasChanges = true;
+    } catch (err) {
+      console.error(`Background watermark failed for product ${productId} primary image:`, err);
+    }
+  }
+
+  const updatedImages: string[] = [];
+  for (const url of images) {
+    if (!url) continue;
+    if (isAlreadyWatermarked(url)) {
+      updatedImages.push(url);
+      continue;
+    }
+    try {
+      const blob = await watermarkUrl(url);
+      const pubUrl = await uploadWatermarkedBlob(blob);
+      updatedImages.push(pubUrl);
+      hasChanges = true;
+    } catch (err) {
+      console.error(`Background watermark failed for product ${productId} additional image:`, err);
+      updatedImages.push(url);
+    }
+  }
+
+  if (hasChanges) {
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update({
+          image_url: updatedImageUrl,
+          images: updatedImages
+        })
+        .eq("id", productId);
+
+      if (error) throw error;
+      if (onComplete) onComplete();
+    } catch (err) {
+      console.error(`Failed to update database with watermarked URLs for product ${productId}:`, err);
+    }
+  }
+}
