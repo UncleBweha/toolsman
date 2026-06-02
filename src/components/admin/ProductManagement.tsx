@@ -882,9 +882,6 @@ const ProductManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <div className="space-y-2">
@@ -1032,16 +1029,9 @@ const ProductManagement = () => {
                   </div>
                 )}
               </TableCell>
-              <TableCell>{product.stock_quantity}</TableCell>
               <TableCell>
                 <div className="flex gap-1 flex-wrap">
-                  {product.status === "active" ? (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Active</span>
-                  ) : product.status === "draft" ? (
-                    <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Draft</span>
-                  ) : product.status === "out_of_stock" ? (
-                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Out of Stock</span>
-                  ) : product.is_active ? (
+                  {product.is_active ? (
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Active</span>
                   ) : (
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Inactive</span>
