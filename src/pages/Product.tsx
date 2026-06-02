@@ -409,9 +409,6 @@ const Product = () => {
                   size="icon"
                   className="h-8 w-8 rounded-none border-l border-gray-300 hover:bg-gray-50 text-gray-600"
                   onClick={() => setQuantity(quantity + 1)}
-                </Button>
-              </div>
-            </div>
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -422,7 +419,6 @@ const Product = () => {
               <Button
                 className="flex-1 bg-[#FF5722] hover:bg-[#e64a19] text-white h-10 font-bold shadow-none text-xs"
                 onClick={handleAddToCart}
-                disabled={product.stock_quantity === 0}
               >
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 ADD TO CART
@@ -430,7 +426,6 @@ const Product = () => {
               <Button
                 className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white h-10 font-bold shadow-none text-xs"
                 onClick={async () => { await handleAddToCart(); navigate("/cart"); }}
-                disabled={product.stock_quantity === 0}
               >
                 BUY NOW
               </Button>
