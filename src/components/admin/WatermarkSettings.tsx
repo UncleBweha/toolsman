@@ -111,7 +111,7 @@ const WatermarkSettings = () => {
         setProgress(`Batch ${round}: fetching products...`);
         let query = supabase
           .from("products")
-          .select("id, image_url")
+          .select("id, image_url, images")
           .not("image_url", "is", null)
           .order("id", { ascending: true })
           .limit(50);
@@ -125,8 +125,13 @@ const WatermarkSettings = () => {
         // Filter out already-watermarked (unless force) and set lastId
         const toProcess = products.filter((p) => {
           lastId = p.id;
-          if (!p.image_url) { totalSkipped++; return false; }
-          if (!force && isAlreadyWatermarked(p.image_url)) { totalSkipped++; return false; }
+          const primaryNeedsWm = p.image_url && (force || !isAlreadyWatermarked(p.image_url));
+          const additionalNeedsWm = Array.isArray(p.images) && p.images.some(img => img && (force || !isAlreadyWatermarked(img)));
+          
+          if (!primaryNeedsWm && !additionalNeedsWm) {
+            totalSkipped++;
+            return false;
+          }
           return true;
         });
 
@@ -137,13 +142,43 @@ const WatermarkSettings = () => {
 
           const results = await Promise.allSettled(
             chunk.map(async (p) => {
-              const blob = await watermarkUrl(p.image_url!);
-              const pubUrl = await uploadWatermarkedBlob(blob);
-              const { error: updateErr } = await supabase
-                .from("products")
-                .update({ image_url: pubUrl })
-                .eq("id", p.id);
-              if (updateErr) throw updateErr;
+              let updatedImageUrl = p.image_url;
+              let updatedImages = Array.isArray(p.images) ? [...p.images] : [];
+              let hasChanges = false;
+
+              // 1. Watermark primary image if needed
+              if (p.image_url && (force || !isAlreadyWatermarked(p.image_url))) {
+                const blob = await watermarkUrl(p.image_url);
+                updatedImageUrl = await uploadWatermarkedBlob(blob);
+                hasChanges = true;
+              }
+
+              // 2. Watermark additional images if needed
+              if (Array.isArray(p.images) && p.images.length > 0) {
+                const nextImages: string[] = [];
+                for (const imgUrl of p.images) {
+                  if (imgUrl && (force || !isAlreadyWatermarked(imgUrl))) {
+                    const blob = await watermarkUrl(imgUrl);
+                    const wmUrl = await uploadWatermarkedBlob(blob);
+                    nextImages.push(wmUrl);
+                    hasChanges = true;
+                  } else {
+                    nextImages.push(imgUrl);
+                  }
+                }
+                updatedImages = nextImages;
+              }
+
+              if (hasChanges) {
+                const { error: updateErr } = await supabase
+                  .from("products")
+                  .update({ 
+                    image_url: updatedImageUrl,
+                    images: updatedImages
+                  })
+                  .eq("id", p.id);
+                if (updateErr) throw updateErr;
+              }
               return p.id;
             })
           );

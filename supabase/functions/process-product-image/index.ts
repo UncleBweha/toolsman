@@ -42,8 +42,8 @@ async function applyWatermark(
     const targetH = Math.max(20, Math.floor(wm.height * scale));
     wm.resize(targetW, targetH);
 
-    // 30 % opacity — subtle but visible
-    wm.opacity(0.30);
+    // 55 % opacity — subtle but visible
+    wm.opacity(0.55);
 
     // Center horizontally, 60 % of the way down
     const x = Math.floor((main.width  - targetW) / 2);
@@ -59,10 +59,10 @@ async function applyWatermark(
       try {
         const fontSize = Math.min(110, Math.max(22, Math.floor(main.width * 0.065)));
 
-        // Dark drop-shadow layer (offset 2 % of font size, ~33 % opacity)
-        const shadowImg = await Image.renderText(fontBuffer, fontSize, "TOOLSMAN", 0x00000055);
-        // Gold/beige layer (#d4c3a3 at ~80 % opacity = CC)
-        const goldImg   = await Image.renderText(fontBuffer, fontSize, "TOOLSMAN", 0xd4c3a3cc);
+        // Dark drop-shadow layer (offset 2 % of font size, ~50 % opacity)
+        const shadowImg = await Image.renderText(fontBuffer, fontSize, "TOOLSMAN", 0x00000080);
+        // Gold/beige layer (#d4c3a3 at ~93 % opacity = EE)
+        const goldImg   = await Image.renderText(fontBuffer, fontSize, "TOOLSMAN", 0xd4c3a3ee);
 
         const x      = Math.floor((main.width  - goldImg.width) / 2);
         const y      = Math.floor( main.height * 0.60 - goldImg.height / 2);

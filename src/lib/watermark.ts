@@ -75,7 +75,7 @@ async function compositeWatermark(
   ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
 
   ctx.save();
-  ctx.globalAlpha = 0.30; // 30 % opacity
+  ctx.globalAlpha = 0.55; // 55% opacity for logo
 
   if (wmImg) {
     // ── Logo watermark ──────────────────────────────────────────────────────
@@ -99,12 +99,12 @@ async function compositeWatermark(
     const y = canvas.height * 0.60;
 
     // Drop shadow
-    ctx.globalAlpha   = 0.20;
+    ctx.globalAlpha   = 0.35; // 35% opacity
     ctx.fillStyle     = "#000000";
     ctx.fillText("TOOLSMAN", x + 2, y + 2);
 
     // Gold text
-    ctx.globalAlpha = 0.30;
+    ctx.globalAlpha = 0.55; // 55% opacity
     ctx.fillStyle   = "#d4c3a3";
     ctx.fillText("TOOLSMAN", x, y);
   }
