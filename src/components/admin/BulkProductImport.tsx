@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Category } from "@/types/database";
+import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked } from "@/lib/watermark";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -347,33 +348,27 @@ const BulkProductImport = () => {
         }
       }
 
-      // Watermark the primary image URL before saving
+      // Watermark the primary image URL before saving client-side
       let finalImageUrl = product.image_url || null;
-      if (finalImageUrl && !finalImageUrl.includes("/products/wm-")) {
+      if (finalImageUrl && !isAlreadyWatermarked(finalImageUrl)) {
         try {
-          const { data: wmData, error: wmErr } = await supabase.functions.invoke("process-product-image", {
-            body: { image_url: finalImageUrl },
-          });
-          if (!wmErr && wmData?.url) {
-            finalImageUrl = wmData.url;
-          }
+          const blob = await watermarkUrl(finalImageUrl);
+          finalImageUrl = await uploadWatermarkedBlob(blob);
         } catch {
           // Non-fatal: keep original URL if watermarking fails
         }
       }
 
-      // Watermark additional images
+      // Watermark additional images client-side
       const finalImages: string[] = [];
       for (const imgUrl of (product.images || []).filter(Boolean)) {
-        if (imgUrl.includes("/products/wm-")) {
+        if (isAlreadyWatermarked(imgUrl)) {
           finalImages.push(imgUrl);
           continue;
         }
         try {
-          const { data: wmData, error: wmErr } = await supabase.functions.invoke("process-product-image", {
-            body: { image_url: imgUrl },
-          });
-          finalImages.push(!wmErr && wmData?.url ? wmData.url : imgUrl);
+          const blob = await watermarkUrl(imgUrl);
+          finalImages.push(await uploadWatermarkedBlob(blob));
         } catch {
           finalImages.push(imgUrl);
         }

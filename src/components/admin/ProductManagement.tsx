@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Product, Category } from "@/types/database";
+import { watermarkFile, watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked } from "@/lib/watermark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -161,25 +162,20 @@ const ProductManagement = () => {
     else setIsUploadingAdditional(true);
 
     try {
-      const formDataUpload = new FormData();
-      formDataUpload.append("image", file);
-      const { data, error } = await supabase.functions.invoke("process-product-image", {
-        body: formDataUpload,
-      });
-      if (error) throw new Error(error.message || String(error));
-      if (!data?.url) throw new Error("No URL returned from watermarking engine");
-
-      const uploadedUrl = data.url;
+      // Watermark client-side using Canvas API (no edge function needed)
+      const { blob } = await watermarkFile(file);
+      const ext = file.name.split(".").pop()?.toLowerCase() === "png" ? "png" : "jpg";
+      const uploadedUrl = await uploadWatermarkedBlob(blob, ext);
 
       if (isPrimary) {
         setFormData((prev) => ({ ...prev, image_url: uploadedUrl }));
       } else {
         setFormData((prev) => ({ ...prev, images: [...prev.images, uploadedUrl] }));
       }
-      toast.success("Image uploaded and watermarked successfully");
+      toast.success("Image uploaded and watermarked");
     } catch (err) {
       console.error("Upload error:", err);
-      toast.error(`Watermark upload failed: ${err instanceof Error ? err.message : "Internal error"}`);
+      toast.error(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       if (isPrimary) setIsUploading(false);
       else setIsUploadingAdditional(false);
@@ -249,32 +245,23 @@ const ProductManagement = () => {
       }
     }
 
-    // ── Watermark URLs before saving ──────────────────────────────────────
-    const needsWatermark = (url: string) =>
-      !!url && !url.includes("/products/wm-");
-
+    // ── Watermark URLs client-side before saving ──────────────────────────
     let finalImageUrl = formData.image_url || null;
-    if (finalImageUrl && needsWatermark(finalImageUrl)) {
+    if (finalImageUrl && !isAlreadyWatermarked(finalImageUrl)) {
       try {
-        const { data: wmData, error: wmErr } = await supabase.functions.invoke(
-          "process-product-image",
-          { body: { image_url: finalImageUrl } }
-        );
-        if (!wmErr && wmData?.url) finalImageUrl = wmData.url;
+        const blob = await watermarkUrl(finalImageUrl);
+        finalImageUrl = await uploadWatermarkedBlob(blob);
       } catch {
-        // non-fatal — save original URL if watermark fails
+        // non-fatal — keep original URL if watermark fails (e.g. CORS)
       }
     }
 
     const finalImages: string[] = [];
     for (const url of formData.images.filter(Boolean)) {
-      if (!needsWatermark(url)) { finalImages.push(url); continue; }
+      if (isAlreadyWatermarked(url)) { finalImages.push(url); continue; }
       try {
-        const { data: wmData, error: wmErr } = await supabase.functions.invoke(
-          "process-product-image",
-          { body: { image_url: url } }
-        );
-        finalImages.push(!wmErr && wmData?.url ? wmData.url : url);
+        const blob = await watermarkUrl(url);
+        finalImages.push(await uploadWatermarkedBlob(blob));
       } catch {
         finalImages.push(url);
       }

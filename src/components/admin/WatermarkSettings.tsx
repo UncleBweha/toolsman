@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Upload, Image as ImageIcon, Wand2, Type, AlertTriangle } from "lucide-react";
+import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked } from "@/lib/watermark";
 
 const WatermarkSettings = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -96,21 +97,55 @@ const WatermarkSettings = () => {
     try {
       while (true) {
         round++;
-        setProgress(`Batch ${round}: processing up to 50 products...`);
-        const { data, error } = await supabase.functions.invoke("bulk-watermark-products", {
-          body: { limit: 50, force, last_id: lastId },
-        });
-        if (error) throw new Error(error.message);
-        if (!data) throw new Error("No response from server");
-        totalProcessed += data.processed || 0;
-        totalSkipped   += data.skipped   || 0;
-        totalFailed    += data.failed    || 0;
+        setProgress(`Batch ${round}: fetching products...`);
+        let query = supabase
+          .from("products")
+          .select("id, image_url")
+          .not("image_url", "is", null)
+          .order("id", { ascending: true })
+          .limit(50);
 
-        lastId = data.last_id || "";
+        if (lastId) {
+          query = query.gt("id", lastId);
+        }
 
-        // Stop when the batch returned nothing or we've exhausted results
-        if (!lastId || (data.returned || 0) === 0) break;
-        if (round >= 100) break; // safety: max 5 000 products per run
+        const { data: products, error } = await query;
+        if (error) throw error;
+        if (!products || products.length === 0) break;
+
+        for (const p of products) {
+          lastId = p.id;
+          const url = p.image_url;
+          if (!url) {
+            totalSkipped++;
+            continue;
+          }
+
+          if (!force && isAlreadyWatermarked(url)) {
+            totalSkipped++;
+            continue;
+          }
+
+          try {
+            setProgress(`Batch ${round}: watermarking product ${p.id}...`);
+            const blob = await watermarkUrl(url);
+            const pubUrl = await uploadWatermarkedBlob(blob);
+
+            const { error: updateErr } = await supabase
+              .from("products")
+              .update({ image_url: pubUrl })
+              .eq("id", p.id);
+
+            if (updateErr) throw updateErr;
+            totalProcessed++;
+          } catch (err) {
+            console.error(`Failed to watermark product ${p.id}:`, err);
+            totalFailed++;
+          }
+        }
+
+        if (products.length < 50) break;
+        if (round >= 100) break; // safety: max 5,000 products per run
       }
       toast.success(`Done — ✅ ${totalProcessed} watermarked · ⏭ ${totalSkipped} skipped · ❌ ${totalFailed} failed`);
       setProgress("");
