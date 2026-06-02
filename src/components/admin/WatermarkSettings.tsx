@@ -15,6 +15,8 @@ const WatermarkSettings = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<string>("");
 
+  const [errorLogs, setErrorLogs] = useState<string[]>([]);
+
   useEffect(() => {
     fetchWatermark();
     checkFont();
@@ -92,9 +94,12 @@ const WatermarkSettings = () => {
     }
     setIsProcessing(true);
     setProgress("Starting bulk watermark...");
+    setErrorLogs([]);
     let totalProcessed = 0, totalSkipped = 0, totalFailed = 0;
     let round = 0;
     let lastId = "";
+    const newErrors: string[] = [];
+
     try {
       while (true) {
         round++;
@@ -141,6 +146,11 @@ const WatermarkSettings = () => {
             totalProcessed++;
           } catch (err) {
             console.error(`Failed to watermark product ${p.id}:`, err);
+            const errMsg = err instanceof Error ? err.message : String(err);
+            if (newErrors.length < 5) {
+              newErrors.push(`Product ${p.id}: ${errMsg}`);
+              setErrorLogs([...newErrors]);
+            }
             totalFailed++;
           }
         }
@@ -336,6 +346,14 @@ const WatermarkSettings = () => {
           </div>
           {progress && (
             <p className="text-sm text-muted-foreground animate-pulse">{progress}</p>
+          )}
+          {errorLogs.length > 0 && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-600 dark:text-red-400 space-y-1 mt-2">
+              <p className="font-semibold text-sm mb-1">Failed Items Sample Errors:</p>
+              {errorLogs.map((log, idx) => (
+                <p key={idx}>{log}</p>
+              ))}
+            </div>
           )}
           <p className="text-xs text-muted-foreground">
             Processes up to 5 000 images per run in batches of 50. Large catalogs may take several minutes.
