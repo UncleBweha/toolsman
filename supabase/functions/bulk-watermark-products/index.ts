@@ -45,26 +45,55 @@ serve(async (req) => {
     const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
 
     // Body: { limit?: number, force?: boolean }
+    // Body: { limit?: number, force?: boolean, last_id?: string }
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
     const force = !!body.force;
+    const lastId = body.last_id || "";
 
     // Find products with image_url. We mark watermarked images by storing them at
     // `products/wm-*` path; if force=true we re-process everything.
-    let query = service.from("products").select("id, image_url").not("image_url", "is", null).limit(limit);
+    let query = service
+      .from("products")
+      .select("id, image_url")
+      .not("image_url", "is", null)
+      .order("id", { ascending: true });
+
+    if (lastId) {
+      query = query.gt("id", lastId);
+    }
+
+    if (!force) {
+      query = query.not("image_url", "like", "%/products/wm-%");
+    }
+
+    query = query.limit(limit);
+
     const { data: products, error: pErr } = await query;
     if (pErr) return json({ error: pErr.message }, 500);
 
     let processed = 0, skipped = 0, failed = 0;
     const errors: Array<{ id: string; error: string }> = [];
+    let lastIdProcessed = lastId;
 
     for (const p of (products || [])) {
+      lastIdProcessed = p.id;
       try {
-        const url = p.image_url as string;
+        let url = p.image_url as string;
         if (!force && url.includes("/products/wm-")) { skipped++; continue; }
 
+        // Handle relative URLs
+        if (!url.startsWith("http")) {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          if (url.startsWith("/")) {
+            url = `${supabaseUrl}${url}`;
+          } else {
+            url = `${supabaseUrl}/storage/v1/object/public/product-images/${url}`;
+          }
+        }
+
         const res = await fetch(url);
-        if (!res.ok) { failed++; errors.push({ id: p.id, error: `fetch ${res.status}` }); continue; }
+        if (!res.ok) { failed++; errors.push({ id: p.id, error: `fetch failed status ${res.status}` }); continue; }
         const buf = new Uint8Array(await res.arrayBuffer());
 
         const main = await Image.decode(buf);
@@ -94,7 +123,15 @@ serve(async (req) => {
       }
     }
 
-    return json({ success: true, processed, skipped, failed, total: products?.length || 0, errors });
+    return json({
+      success: true,
+      processed,
+      skipped,
+      failed,
+      returned: products?.length || 0,
+      last_id: lastIdProcessed,
+      errors
+    });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "Internal error" }, 500);
   }

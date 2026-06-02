@@ -48,20 +48,24 @@ const WatermarkSettings = () => {
     setProgress("Starting bulk watermark...");
     let totalProcessed = 0, totalSkipped = 0, totalFailed = 0;
     let round = 0;
+    let lastId = "";
     try {
       while (true) {
         round++;
         setProgress(`Batch ${round}: processing up to 50 products...`);
         const { data, error } = await supabase.functions.invoke("bulk-watermark-products", {
-          body: { limit: 50, force },
+          body: { limit: 50, force, last_id: lastId },
         });
         if (error) throw new Error(error.message);
         if (!data) throw new Error("No response from server");
         totalProcessed += data.processed || 0;
         totalSkipped += data.skipped || 0;
         totalFailed += data.failed || 0;
-        // Stop when nothing more changed
-        if ((data.processed || 0) === 0) break;
+        
+        lastId = data.last_id || "";
+        
+        // Stop when we reached the end (returned is 0 or less than limit)
+        if (!lastId || (data.returned || 0) === 0) break;
         if (round >= 50) break; // safety: max 2500 products per click
       }
       toast.success(`Done — watermarked ${totalProcessed}, skipped ${totalSkipped}, failed ${totalFailed}`);
