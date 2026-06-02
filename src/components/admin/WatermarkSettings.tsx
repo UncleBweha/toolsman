@@ -10,7 +10,7 @@ import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, resetWaterma
 const WatermarkSettings = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isFontUploading, setIsFontUploading] = useState(false);
-  const [watermarkUrl, setWatermarkUrl] = useState<string | null>(null);
+  const [watermarkLogoUrl, setWatermarkLogoUrl] = useState<string | null>(null);
   const [fontExists, setFontExists] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -26,10 +26,10 @@ const WatermarkSettings = () => {
     const { data } = supabase.storage.from("system-assets").getPublicUrl("watermark.png");
     try {
       const res = await fetch(data.publicUrl, { method: "HEAD" });
-      if (res.ok) setWatermarkUrl(data.publicUrl + "?t=" + Date.now());
-      else setWatermarkUrl(null);
+      if (res.ok) setWatermarkLogoUrl(data.publicUrl + "?t=" + Date.now());
+      else setWatermarkLogoUrl(null);
     } catch {
-      setWatermarkUrl(null);
+      setWatermarkLogoUrl(null);
     }
   };
 
@@ -88,7 +88,7 @@ const WatermarkSettings = () => {
   };
 
   const runBulkWatermark = async (force: boolean) => {
-    if (!watermarkUrl && !fontExists) {
+    if (!watermarkLogoUrl && !fontExists) {
       toast.error("Upload a watermark logo or font first.");
       return;
     }
@@ -168,7 +168,7 @@ const WatermarkSettings = () => {
     }
   };
 
-  const hasAsset = watermarkUrl || fontExists;
+  const hasAsset = watermarkLogoUrl || fontExists;
 
   return (
     <div className="space-y-6">
@@ -211,10 +211,10 @@ const WatermarkSettings = () => {
           <div className="space-y-2">
             <Label>Current Watermark</Label>
             <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center bg-muted/30 h-48 relative overflow-hidden">
-              {watermarkUrl ? (
+              {watermarkLogoUrl ? (
                 <>
                   <img
-                    src={watermarkUrl}
+                    src={watermarkLogoUrl}
                     alt="Watermark preview"
                     className="max-w-full max-h-full object-contain"
                   />
@@ -236,11 +236,11 @@ const WatermarkSettings = () => {
 
           <div className="flex items-center gap-4">
             <div className="relative">
-              <Button disabled={isUploading} variant={watermarkUrl ? "outline" : "default"}>
+              <Button disabled={isUploading} variant={watermarkLogoUrl ? "outline" : "default"}>
                 {isUploading
                   ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   : <Upload className="mr-2 h-4 w-4" />}
-                {watermarkUrl ? "Replace Watermark PNG" : "Upload Watermark PNG"}
+                {watermarkLogoUrl ? "Replace Watermark PNG" : "Upload Watermark PNG"}
               </Button>
               <input
                 type="file"
