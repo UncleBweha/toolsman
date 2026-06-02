@@ -140,7 +140,7 @@ const RelatedProducts = ({
     queryKey: ["related-products", currentProductId, categoryId, allCurrentTags.join(",")],
     queryFn: async () => {
       // Fetch products in same category + products with matching tags
-      const queries: Promise<Product[]>[] = [];
+      const queries: PromiseLike<Product[]>[] = [];
 
       // 1. Same category
       if (categoryId) {

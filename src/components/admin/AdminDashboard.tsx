@@ -91,15 +91,8 @@ const AdminDashboard = () => {
       })));
     }
 
-    // Inventory alerts (low stock)
-    const { data: productsData } = await supabase
-      .from("products").select("name, sku, stock_quantity, image_url")
-      .lt("stock_quantity", 10).order("stock_quantity", { ascending: true }).limit(5);
-    if (productsData) {
-      setInventoryAlerts(productsData.map(p => ({
-        name: p.name, sku: p.sku || "N/A", stock: p.stock_quantity, img: p.image_url,
-      })));
-    }
+    // Inventory alerts disabled — store operates with unlimited inventory.
+    setInventoryAlerts([]);
 
     // Best selling products (by order item count)
     const { data: bsData } = await supabase

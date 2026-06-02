@@ -24,7 +24,6 @@ interface WishlistItem {
     image_url: string | null;
     slug: string;
     sku: string | null;
-    stock_quantity: number;
   };
 }
 
@@ -44,7 +43,7 @@ const Wishlist = () => {
     if (!user) { setLoading(false); return; }
     const { data } = await supabase
       .from("wishlists")
-      .select("*, product:products(id, name, price, image_url, slug, sku, stock_quantity)")
+      .select("*, product:products(id, name, price, image_url, slug, sku)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     setItems((data as WishlistItem[]) || []);
@@ -221,7 +220,7 @@ const Wishlist = () => {
                           <div className="flex items-center gap-1.5 mt-1.5">
                             <Check className="h-3 w-3 text-green-500" />
                             <span className="text-xs font-semibold text-green-600">
-                              {(item.product?.stock_quantity || 0) > 0 ? "In Stock" : "Out of Stock"}
+                              In Stock
                             </span>
                           </div>
                         </div>

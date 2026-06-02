@@ -2,198 +2,74 @@ import { supabase } from "@/integrations/supabase/client";
 import { Category } from "@/types/database";
 import { CategoryWithSubcategories } from "@/lib/excelTemplateGenerator";
 
-/**
- * Fetches categories with their subcategories
- * Uses parent_id to determine hierarchy
- */
-export async function fetchCategoriesWithSubcategories(): Promise<
-  CategoryWithSubcategories[]
-> {
-  try {
-    // Fetch all active categories
-    const { data: allCategories, error } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("is_active", true)
-      .order("display_order");
+/** Normalise a category name for case- and whitespace-tolerant matching. */
+const normalize = (s: string) =>
+  (s || "").toString().toLowerCase().replace(/\s+/g, " ").trim();
 
-    if (error) {
-      console.error("Error fetching categories:", error);
-      throw error;
-    }
+/** In-memory cache so each import only hits the DB once. */
+let categoriesCache: Category[] | null = null;
 
-    if (!allCategories) {
-      return [];
-    }
-
-    // Organize categories: parent categories with their subcategories
-    const categoryMap = new Map<string, Category>();
-    const parentCategories: Category[] = [];
-    const subcategories: Category[] = [];
-
-    allCategories.forEach((cat) => {
-      categoryMap.set(cat.id, cat);
-      if (cat.parent_id === null) {
-        parentCategories.push(cat);
-      } else {
-        subcategories.push(cat);
-      }
-    });
-
-    // Build the result structure
-    const result: CategoryWithSubcategories[] = parentCategories.map((parent) => {
-      const relatedSubs = subcategories.filter(
-        (sub) => sub.parent_id === parent.id
-      );
-
-      return {
-        id: parent.id,
-        name: parent.name,
-        parent_id: parent.parent_id,
-        subcategories: relatedSubs.map((sub) => ({
-          id: sub.id,
-          name: sub.name,
-          parent_id: sub.parent_id,
-        })),
-      };
-    });
-
-    return result;
-  } catch (error) {
-    console.error("Failed to fetch categories with subcategories:", error);
-    throw error;
-  }
+async function getAllCategories(): Promise<Category[]> {
+  if (categoriesCache) return categoriesCache;
+  const { data } = await supabase
+    .from("categories")
+    .select("*")
+    .eq("is_active", true)
+    .order("display_order");
+  categoriesCache = (data as Category[]) || [];
+  return categoriesCache;
 }
 
-/**
- * Validates that a category exists and is active
- */
-export async function validateCategory(categoryName: string): Promise<{
-  valid: boolean;
-  categoryId?: string;
-  error?: string;
-}> {
-  try {
-    const { data: category, error } = await supabase
-      .from("categories")
-      .select("id")
-      .eq("name", categoryName)
-      .eq("is_active", true)
-      .eq("parent_id", null) // Only parent categories (not subcategories)
-      .single();
-
-    if (error || !category) {
-      return {
-        valid: false,
-        error: `Category "${categoryName}" not found`,
-      };
-    }
-
-    return {
-      valid: true,
-      categoryId: category.id,
-    };
-  } catch (error) {
-    console.error("Error validating category:", error);
-    return {
-      valid: false,
-      error: "Failed to validate category",
-    };
-  }
+/** Find a category by name (case-insensitive), slug, or ID. Only parents. */
+function findParent(all: Category[], lookup: string): Category | null {
+  if (!lookup) return null;
+  const n = normalize(lookup);
+  return (
+    all.find(c => !c.parent_id && (c.id === lookup || c.slug === lookup || normalize(c.name) === n)) ||
+    all.find(c => !c.parent_id && (normalize(c.slug) === n)) ||
+    null
+  );
 }
 
-/**
- * Validates that a subcategory exists and belongs to the given category
- */
-export async function validateSubcategory(
-  subcategoryName: string,
-  categoryId: string
-): Promise<{
-  valid: boolean;
-  subcategoryId?: string;
-  error?: string;
-}> {
-  try {
-    const { data: subcategory, error } = await supabase
-      .from("categories")
-      .select("id")
-      .eq("name", subcategoryName)
-      .eq("parent_id", categoryId)
-      .eq("is_active", true)
-      .single();
-
-    if (error || !subcategory) {
-      return {
-        valid: false,
-        error: `Subcategory "${subcategoryName}" not found or doesn't belong to this category`,
-      };
-    }
-
-    return {
-      valid: true,
-      subcategoryId: subcategory.id,
-    };
-  } catch (error) {
-    console.error("Error validating subcategory:", error);
-    return {
-      valid: false,
-      error: "Failed to validate subcategory",
-    };
-  }
+/** Find a subcategory by name/slug/ID under a specific parent. */
+function findSub(all: Category[], lookup: string, parentId: string): Category | null {
+  if (!lookup) return null;
+  const n = normalize(lookup);
+  return (
+    all.find(c => c.parent_id === parentId && (c.id === lookup || c.slug === lookup || normalize(c.name) === n || normalize(c.slug) === n)) ||
+    null
+  );
 }
 
-/**
- * Gets a category ID by name (for import mapping)
- */
-export async function getCategoryIdByName(
-  categoryName: string
-): Promise<string | null> {
-  try {
-    const { data: category } = await supabase
-      .from("categories")
-      .select("id")
-      .eq("name", categoryName)
-      .eq("is_active", true)
-      .eq("parent_id", null)
-      .single();
-
-    return category?.id || null;
-  } catch {
-    return null;
-  }
+export async function fetchCategoriesWithSubcategories(): Promise<CategoryWithSubcategories[]> {
+  categoriesCache = null; // force fresh fetch for template generation
+  const all = await getAllCategories();
+  const parents = all.filter(c => !c.parent_id);
+  return parents.map(parent => ({
+    id: parent.id,
+    name: parent.name,
+    parent_id: parent.parent_id,
+    subcategories: all
+      .filter(c => c.parent_id === parent.id)
+      .map(sub => ({ id: sub.id, name: sub.name, parent_id: sub.parent_id! })),
+  }));
 }
 
-/**
- * Gets a subcategory ID by name and parent category ID
- */
+export async function getCategoryIdByName(name: string): Promise<string | null> {
+  const all = await getAllCategories();
+  return findParent(all, name)?.id || null;
+}
+
 export async function getSubcategoryIdByName(
-  subcategoryName: string,
+  name: string,
   categoryId: string
 ): Promise<string | null> {
-  try {
-    const { data: subcategory } = await supabase
-      .from("categories")
-      .select("id")
-      .eq("name", subcategoryName)
-      .eq("parent_id", categoryId)
-      .eq("is_active", true)
-      .single();
-
-    return subcategory?.id || null;
-  } catch {
-    return null;
-  }
+  const all = await getAllCategories();
+  return findSub(all, name, categoryId)?.id || null;
 }
 
-/**
- * Bulk validate categories and subcategories from import data
- */
 export async function validateImportedCategories(
-  rows: Array<{
-    category?: string;
-    sub_category?: string;
-    rowIndex: number;
-  }>
+  rows: Array<{ category?: string; sub_category?: string; rowIndex: number }>
 ): Promise<
   Array<{
     rowIndex: number;
@@ -203,56 +79,60 @@ export async function validateImportedCategories(
     errors: string[];
   }>
 > {
-  const results = [];
+  const all = await getAllCategories();
+  const availableParents = all
+    .filter(c => !c.parent_id)
+    .map(c => c.name)
+    .sort()
+    .join(", ");
 
-  for (const row of rows) {
+  return rows.map(row => {
     const errors: string[] = [];
     let categoryId: string | undefined;
     let subcategoryId: string | undefined;
 
-    // Skip if both category and subcategory are empty
     if (!row.category && !row.sub_category) {
-      results.push({
-        rowIndex: row.rowIndex,
-        valid: true,
-        errors: [],
-      });
-      continue;
+      return { rowIndex: row.rowIndex, valid: true, errors: [] };
     }
 
-    // Validate category if provided
     if (row.category) {
-      const catValidation = await validateCategory(row.category);
-      if (!catValidation.valid) {
-        errors.push(catValidation.error || "Invalid category");
+      const parent = findParent(all, row.category);
+      if (!parent) {
+        errors.push(
+          `Row ${row.rowIndex}: Category "${row.category}" not found. ` +
+          `Available categories: ${availableParents}`
+        );
       } else {
-        categoryId = catValidation.categoryId;
+        categoryId = parent.id;
       }
     }
 
-    // Validate subcategory if provided
-    if (row.sub_category && categoryId) {
-      const subValidation = await validateSubcategory(
-        row.sub_category,
-        categoryId
-      );
-      if (!subValidation.valid) {
-        errors.push(subValidation.error || "Invalid subcategory");
+    if (row.sub_category) {
+      if (!categoryId) {
+        errors.push(`Row ${row.rowIndex}: A valid parent category is required before sub-category "${row.sub_category}"`);
       } else {
-        subcategoryId = subValidation.subcategoryId;
+        const sub = findSub(all, row.sub_category, categoryId);
+        if (!sub) {
+          const validSubs = all
+            .filter(c => c.parent_id === categoryId)
+            .map(c => c.name)
+            .join(", ") || "(none)";
+          errors.push(
+            `Row ${row.rowIndex}: Sub-category "${row.sub_category}" not found under "${row.category}". ` +
+            `Valid sub-categories: ${validSubs}`
+          );
+        } else {
+          subcategoryId = sub.id;
+        }
       }
-    } else if (row.sub_category && !categoryId) {
-      errors.push("Category must be specified before subcategory");
     }
 
-    results.push({
+    return {
       rowIndex: row.rowIndex,
       valid: errors.length === 0,
       categoryId,
       subcategoryId,
       errors,
-    });
-  }
-
-  return results;
+    };
+  });
 }

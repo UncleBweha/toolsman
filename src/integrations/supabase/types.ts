@@ -151,49 +151,77 @@ export type Database = {
         Row: {
           billing_address: Json | null
           created_at: string
+          etims_invoice_number: string | null
           id: string
+          is_pickup_order: boolean
+          kra_pin: string | null
           notes: string | null
           order_number: string
+          pickup_branch_id: string | null
+          pickup_branch_name: string | null
+          receipt_status: string | null
           shipping_address: Json | null
           shipping_cost: number | null
           status: string
           subtotal: number
+          tax_name: string | null
           total: number
           updated_at: string
           user_id: string | null
+          vat_amount: number
+          vat_enabled: boolean
         }
         Insert: {
           billing_address?: Json | null
           created_at?: string
+          etims_invoice_number?: string | null
           id?: string
+          is_pickup_order?: boolean
+          kra_pin?: string | null
           notes?: string | null
           order_number: string
+          pickup_branch_id?: string | null
+          pickup_branch_name?: string | null
+          receipt_status?: string | null
           shipping_address?: Json | null
           shipping_cost?: number | null
           status?: string
           subtotal: number
+          tax_name?: string | null
           total: number
           updated_at?: string
           user_id?: string | null
+          vat_amount?: number
+          vat_enabled?: boolean
         }
         Update: {
           billing_address?: Json | null
           created_at?: string
+          etims_invoice_number?: string | null
           id?: string
+          is_pickup_order?: boolean
+          kra_pin?: string | null
           notes?: string | null
           order_number?: string
+          pickup_branch_id?: string | null
+          pickup_branch_name?: string | null
+          receipt_status?: string | null
           shipping_address?: Json | null
           shipping_cost?: number | null
           status?: string
           subtotal?: number
+          tax_name?: string | null
           total?: number
           updated_at?: string
           user_id?: string | null
+          vat_amount?: number
+          vat_enabled?: boolean
         }
         Relationships: []
       }
       products: {
         Row: {
+          brand: string | null
           category_id: string | null
           created_at: string
           description: string | null
@@ -202,15 +230,19 @@ export type Database = {
           images: string[] | null
           is_active: boolean | null
           is_featured: boolean | null
+          key_features: string[] | null
           name: string
           original_price: number | null
           price: number
           sku: string | null
           slug: string
+          status: string | null
           stock_quantity: number | null
+          tags: string[] | null
           updated_at: string
         }
         Insert: {
+          brand?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -219,15 +251,19 @@ export type Database = {
           images?: string[] | null
           is_active?: boolean | null
           is_featured?: boolean | null
+          key_features?: string[] | null
           name: string
           original_price?: number | null
           price: number
           sku?: string | null
           slug: string
+          status?: string | null
           stock_quantity?: number | null
+          tags?: string[] | null
           updated_at?: string
         }
         Update: {
+          brand?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -236,12 +272,15 @@ export type Database = {
           images?: string[] | null
           is_active?: boolean | null
           is_featured?: boolean | null
+          key_features?: string[] | null
           name?: string
           original_price?: number | null
           price?: number
           sku?: string | null
           slug?: string
+          status?: string | null
           stock_quantity?: number | null
+          tags?: string[] | null
           updated_at?: string
         }
         Relationships: [

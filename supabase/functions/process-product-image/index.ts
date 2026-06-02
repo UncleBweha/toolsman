@@ -180,36 +180,34 @@ serve(async (req) => {
       if (!watermarkError && watermarkData) {
         // Import ImageScript dynamically to avoid breaking basic upload if it fails
         const { Image } = await import("https://deno.land/x/imagescript@1.2.15/mod.ts");
-        
+
         const watermarkBuffer = new Uint8Array(await watermarkData.arrayBuffer());
-        
+
         // Decode both images
         const mainImage = await Image.decode(imageBuffer);
         const watermarkImage = await Image.decode(watermarkBuffer);
-        
-        // Calculate dimensions - watermark should be 30% of main image width
-        const targetWidth = Math.max(100, Math.floor(mainImage.width * 0.3));
+
+        // Resize watermark to ~10% of main image width (Madukani-style: small + subtle)
+        const targetWidth = Math.max(80, Math.floor(mainImage.width * 0.10));
         const scale = targetWidth / watermarkImage.width;
         const targetHeight = Math.floor(watermarkImage.height * scale);
-        
-        // Resize watermark
         watermarkImage.resize(targetWidth, targetHeight);
-        
-        // Apply opacity (e.g., 50%)
-        watermarkImage.opacity(0.5);
-        
-        // Calculate center position
-        const x = Math.floor((mainImage.width - targetWidth) / 2);
-        const y = Math.floor((mainImage.height - targetHeight) / 2);
-        
+
+        // Subtle opacity (~25%) so branding is visible but doesn't obstruct product
+        watermarkImage.opacity(0.25);
+
+        // Bottom-right corner with small padding (~2% of width)
+        const padding = Math.max(12, Math.floor(mainImage.width * 0.02));
+        const x = mainImage.width - targetWidth - padding;
+        const y = mainImage.height - targetHeight - padding;
+
         // Composite watermark over main image
         mainImage.composite(watermarkImage, x, y);
-        
-        // Encode back to buffer (save as WebP for optimization if desired, but we keep original format for now)
+
+        // Re-encode optimized for web. JPEG @ 85 quality keeps files small.
         if (mimeType === "image/png") {
           finalBuffer = await mainImage.encode();
         } else {
-          // Default to JPEG for others
           finalBuffer = await mainImage.encodeJPEG(85);
           finalMimeType = "image/jpeg";
         }
