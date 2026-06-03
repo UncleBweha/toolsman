@@ -187,12 +187,13 @@ async function loadImage(src: string): Promise<HTMLImageElement> {
     });
 
     try {
-      return await Promise.any(racers);
+      return await (Promise as any).any(racers);
     } catch (err) {
       const aggErr = err as any;
       const details = aggErr.errors ? aggErr.errors.map((e: any) => e.message).join(" · ") : "Unknown error";
       throw new Error(`Failed to load image via all proxies: ${details}`);
     }
+
   }
 
   return loadImgElement(src);

@@ -97,6 +97,52 @@ const Search = () => {
     fetchProducts();
   }, [query, tagFilter, sortBy]);
 
+  // SEO: per-tag/per-query meta tags so tag pages can rank independently
+  useEffect(() => {
+    const setMeta = (selector: string, attr: string, value: string) => {
+      let el = document.head.querySelector<HTMLMetaElement>(selector);
+      if (!el) {
+        el = document.createElement("meta");
+        const [k, v] = selector.replace(/^meta\[/, "").replace(/\]$/, "").split("=");
+        el.setAttribute(k, v.replace(/['"]/g, ""));
+        document.head.appendChild(el);
+      }
+      el.setAttribute(attr, value);
+    };
+    const setCanonical = (href: string) => {
+      let el = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+      if (!el) {
+        el = document.createElement("link");
+        el.setAttribute("rel", "canonical");
+        document.head.appendChild(el);
+      }
+      el.setAttribute("href", href);
+    };
+
+    const base = "https://toolsman.lovable.app";
+    if (tagFilter) {
+      const pretty = tagFilter.replace(/[-_]+/g, " ").trim();
+      const title = `${pretty} in Kenya | Shop ${pretty} online — Toolsman`;
+      const desc = `Browse ${pretty} and related products in Kenya. Fast nationwide delivery, secure payments and after-sales support from Toolsman.`;
+      document.title = title;
+      setMeta('meta[name="description"]', "content", desc);
+      setMeta('meta[name="keywords"]', "content", `${pretty}, ${pretty} Kenya, buy ${pretty} online, ${pretty} for sale, Toolsman`);
+      setMeta('meta[property="og:title"]', "content", title);
+      setMeta('meta[property="og:description"]', "content", desc);
+      setMeta('meta[property="og:type"]', "content", "website");
+      setMeta('meta[property="og:url"]', "content", `${base}/search?tag=${encodeURIComponent(tagFilter)}`);
+      setMeta('meta[name="robots"]', "content", "index, follow");
+      setCanonical(`${base}/search?tag=${encodeURIComponent(tagFilter)}`);
+    } else if (query) {
+      const title = `Search: ${query} — Toolsman`;
+      document.title = title;
+      setMeta('meta[name="description"]', "content", `Search results for "${query}" on Toolsman Kenya.`);
+      setMeta('meta[name="robots"]', "content", "noindex, follow");
+      setCanonical(`${base}/search?q=${encodeURIComponent(query)}`);
+    }
+  }, [query, tagFilter]);
+
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <AnnouncementBar />

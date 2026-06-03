@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Product, Category } from "@/types/database";
 import { watermarkFile, watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, watermarkProduct } from "@/lib/watermark";
+import { parseKeyFeatures } from "@/lib/featureParser";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -262,9 +264,8 @@ const ProductManagement = () => {
       images: rawImages,
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
-      key_features: formData.key_features
-        ? formData.key_features.split("\n").map(f => f.trim()).filter(Boolean)
-        : [],
+      key_features: parseKeyFeatures(formData.key_features),
+
       status: formData.status || "active",
       is_featured: formData.is_featured,
       is_active: formData.is_active,

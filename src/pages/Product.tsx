@@ -25,7 +25,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Product as ProductType } from "@/types/database";
 import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { parseKeyFeatures } from "@/lib/featureParser";
 import DOMPurify from "dompurify";
+
 
 
 
@@ -464,7 +466,9 @@ const Product = () => {
 
           {/* Right Column — Key Features */}
           <div className="lg:col-span-3">
-            {product.key_features && product.key_features.filter(Boolean).length > 0 ? (
+            {(() => {
+              const features = parseKeyFeatures(product.key_features);
+              return features.length > 0 ? (
               <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
                 <CardContent className="p-5">
                   <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -474,7 +478,7 @@ const Product = () => {
                     Key Features
                   </h3>
                   <ul className="space-y-3">
-                    {product.key_features.filter(Boolean).map((feature, i) => (
+                    {features.map((feature, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700 leading-snug">
                         <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
                         <span>{feature}</span>
@@ -484,6 +488,7 @@ const Product = () => {
                 </CardContent>
               </Card>
             ) : (
+
               <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
                 <CardContent className="p-5">
                   <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-3">Why Buy From Us</h3>
@@ -502,8 +507,10 @@ const Product = () => {
                   </ul>
                 </CardContent>
               </Card>
-            )}
+            );
+            })()}
           </div>
+
         </div>
 
 

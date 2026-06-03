@@ -15,7 +15,9 @@ import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { parseKeyFeatures } from "@/lib/featureParser";
 import { generateProductImportTemplate, parseExcelFile, CategoryWithSubcategories } from "@/lib/excelTemplateGenerator";
+
 import { 
   fetchCategoriesWithSubcategories, 
   getCategoryIdByName, 
@@ -364,7 +366,7 @@ const BulkProductImport = () => {
         images: rawImages,
         brand: product.brand || null,
         tags: product.tags ? product.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
-        key_features: product.key_features ? product.key_features.split(",").map(f => f.trim()).filter(Boolean) : [],
+        key_features: parseKeyFeatures(product.key_features),
         status: product.product_status || "active",
         is_featured: product.is_featured || false,
         is_active: product.is_active ?? true,
