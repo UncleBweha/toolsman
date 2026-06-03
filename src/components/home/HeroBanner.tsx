@@ -167,17 +167,17 @@ const HeroBanner = () => {
             </div>
           </div>
 
-          {slides.length > 1 && (
+          {slides.current.length > 1 && (
             <div className="flex gap-1.5 justify-center mt-3 md:mt-5">
-              {slides.map((_, index) => (
-                <button
+              {Array.from({ length: Math.min(5, slides.current.length) }).map((_, index) => (
+                <span
                   key={index}
-                  onClick={() => setCurrentSlide(index)}
                   className={`h-1.5 rounded-full transition-all ${
-                    index === currentSlide ? "w-6 bg-[#FF5722]" : "w-1.5 bg-gray-300"
+                    index === currentSlide % 5 ? "w-6 bg-[#FF5722]" : "w-1.5 bg-gray-300"
                   }`}
-                  aria-label={`Slide ${index + 1}`}
+                  aria-hidden
                 />
+
               ))}
             </div>
           )}
