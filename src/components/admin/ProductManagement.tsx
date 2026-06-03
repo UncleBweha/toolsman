@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Product, Category } from "@/types/database";
 import { watermarkFile, watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, watermarkProduct } from "@/lib/watermark";
+import { parseKeyFeatures } from "@/lib/featureParser";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
