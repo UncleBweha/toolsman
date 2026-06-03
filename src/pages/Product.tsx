@@ -507,8 +507,10 @@ const Product = () => {
                   </ul>
                 </CardContent>
               </Card>
-            )}
+            );
+            })()}
           </div>
+
         </div>
 
 
