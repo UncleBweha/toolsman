@@ -262,9 +262,8 @@ const ProductManagement = () => {
       images: rawImages,
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
-      key_features: formData.key_features
-        ? formData.key_features.split("\n").map(f => f.trim()).filter(Boolean)
-        : [],
+      key_features: parseKeyFeatures(formData.key_features),
+
       status: formData.status || "active",
       is_featured: formData.is_featured,
       is_active: formData.is_active,
