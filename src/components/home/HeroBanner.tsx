@@ -9,36 +9,63 @@ import { motion, AnimatePresence } from "framer-motion";
 const HeroBanner = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  const { data: slides = [] } = useQuery({
-    queryKey: ["hero-products"],
+  // Pull a wider random pool from the active catalog so the banner isn't
+  // limited to "featured" products. The pool refreshes every 5 minutes.
+  const { data: pool = [] } = useQuery({
+    queryKey: ["hero-pool"],
     queryFn: async () => {
-      const { data: featured } = await supabase
+      const { data } = await supabase
         .from("products")
         .select("id, name, slug, price, original_price, image_url, description")
         .eq("is_active", true)
-        .eq("is_featured", true)
+        .not("image_url", "is", null)
         .order("created_at", { ascending: false })
-        .limit(3);
-      if (featured && featured.length >= 3) return featured;
-
-      const { data: newest } = await supabase
-        .from("products")
-        .select("id, name, slug, price, original_price, image_url, description")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(3);
-      return newest || [];
+        .limit(60);
+      return data || [];
     },
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
-  useEffect(() => {
-    if (!slides.length) return;
-    const t = setInterval(() => setCurrentSlide((p) => (p + 1) % slides.length), 6000);
-    return () => clearInterval(t);
-  }, [slides.length]);
+  // Build a fair, shuffled rotation queue (Fisher–Yates). Reshuffles when the
+  // pool changes or we've cycled through every product — so a product never
+  // appears twice in a row and every product gets equal exposure.
+  const slides = useRef<typeof pool>([]);
+  if (pool.length && slides.current.length === 0) {
+    const a = [...pool];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    slides.current = a;
+  }
 
-  if (!slides.length) {
+  useEffect(() => {
+    if (!slides.current.length) return;
+    const t = setInterval(() => {
+      setCurrentSlide((p) => {
+        const next = p + 1;
+        // Reshuffle when we complete a full cycle to keep order fresh
+        if (next >= slides.current.length) {
+          const a = [...pool];
+          for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+          }
+          // Avoid the last-shown item leading the new cycle
+          if (a[0]?.id === slides.current[p]?.id && a.length > 1) {
+            [a[0], a[1]] = [a[1], a[0]];
+          }
+          slides.current = a;
+          return 0;
+        }
+        return next;
+      });
+    }, 3000);
+    return () => clearInterval(t);
+  }, [pool]);
+
+  if (!slides.current.length) {
+
     return (
       <section className="py-3 md:py-6 bg-white">
         <div className="container">
@@ -50,9 +77,10 @@ const HeroBanner = () => {
     );
   }
 
-  const slide = slides[currentSlide % slides.length];
-  const eyebrows = ["Just Arrived", "Best Sellers", "Top Picks"];
+  const slide = slides.current[currentSlide % slides.current.length];
+  const eyebrows = ["Just Arrived", "Best Sellers", "Top Picks", "Trending Now", "Editor's Pick"];
   const eyebrow = eyebrows[currentSlide % eyebrows.length];
+
 
   return (
     <section className="py-3 md:py-6 bg-white">
