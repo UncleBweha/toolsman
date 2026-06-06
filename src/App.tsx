@@ -57,6 +57,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <AnnouncementBar />
             <ScrollToTop />
             <ConditionalWhatsAppButton phoneNumber="254701043041" />
             <Suspense fallback={<PageLoader />}>
