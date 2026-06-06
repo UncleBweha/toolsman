@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 import ScrollToTop from "./components/ScrollToTop";
 import ConditionalWhatsAppButton from "./components/ConditionalWhatsAppButton";
 import BottomNav from "./components/layout/BottomNav";
+import AnnouncementBar from "./components/layout/AnnouncementBar";
 
 // Lazily-loaded routes (non-critical, reduces initial bundle)
 const Auth = lazy(() => import("./pages/Auth"));
