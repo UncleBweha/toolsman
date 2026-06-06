@@ -145,7 +145,6 @@ const Search = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <AnnouncementBar />
       <Header />
 
       <main className="flex-1 container py-8">
