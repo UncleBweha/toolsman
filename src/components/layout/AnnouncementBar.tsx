@@ -18,7 +18,7 @@ const TickerItem = ({ children }: { children: React.ReactNode }) => (
 
 const AnnouncementBar = () => {
   const { pathname } = useLocation();
-  if (pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/admin") || pathname.startsWith("/auth")) return null;
 
   const trustContent = (
     <>
@@ -38,9 +38,9 @@ const AnnouncementBar = () => {
   );
 
   return (
-    <div className="sticky top-0 z-[60]">
-      {/* ── Main Bar ── */}
-      <div className="bg-black relative overflow-hidden">
+    <>
+      {/* ── Sticky Main Bar ── */}
+      <div className="sticky top-0 z-[60] bg-black relative overflow-hidden h-12 md:h-14">
         {/* Animated diagonal stripe background */}
         <div
           className="absolute inset-0 opacity-[0.06]"
@@ -58,7 +58,7 @@ const AnnouncementBar = () => {
         {/* Subtle orange glow behind phone number */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-14 bg-[#FF5722]/10 blur-3xl rounded-full pointer-events-none" />
 
-        <div className="container relative h-12 md:h-14 flex items-center justify-between">
+        <div className="container relative h-full flex items-center justify-between">
           {/* Left: CTA badges (desktop) */}
           <div className="hidden md:flex items-center gap-2.5 flex-shrink-0">
             <span className="inline-flex items-center gap-1 bg-[#FF5722] text-white text-[10px] font-black px-2 py-1 rounded-sm uppercase tracking-widest animate-pulse shadow-[0_0_12px_rgba(255,87,34,0.5)]">
@@ -115,7 +115,7 @@ const AnnouncementBar = () => {
         </div>
       </div>
 
-      {/* ── Desktop Ticker: Trust Badges ── */}
+      {/* ── Desktop Ticker: Trust Badges (scrolls away, not sticky) ── */}
       <div className="hidden md:block bg-[#FF5722] h-5 overflow-hidden relative">
         <div className="flex items-center h-full animate-[announcement-ticker_22s_linear_infinite] whitespace-nowrap will-change-transform">
           {trustContent}
@@ -129,7 +129,7 @@ const AnnouncementBar = () => {
           100% { transform: translateX(-50%); }
         }
       `}</style>
-    </div>
+    </>
   );
 };
 
