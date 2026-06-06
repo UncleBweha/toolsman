@@ -353,9 +353,10 @@ const BulkProductImport = () => {
       const rawImageUrl = product.image_url || null;
       const rawImages = product.images || [];
 
-      const { data: inserted, error } = await supabase.from("products").insert({
+      const baseSlug = product.slug || generateSlug(product.name);
+      const buildPayload = (slug: string) => ({
         name: product.name,
-        slug: product.slug || generateSlug(product.name),
+        slug,
         description: product.description || null,
         price: product.price,
         original_price: product.original_price || null,
@@ -370,12 +371,28 @@ const BulkProductImport = () => {
         status: product.product_status || "active",
         is_featured: product.is_featured || false,
         is_active: product.is_active ?? true,
-      }).select("id").single();
+      });
+
+      let inserted: { id: string } | null = null;
+      let error: any = null;
+      let slug = baseSlug;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const res = await supabase.from("products").insert(buildPayload(slug)).select("id").single();
+        if (!res.error) { inserted = res.data as any; error = null; break; }
+        error = res.error;
+        // Retry only on unique slug conflict
+        if (res.error.code === "23505" && /slug/i.test(res.error.message)) {
+          slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
+          continue;
+        }
+        break;
+      }
 
       if (error) {
         updatedProducts[i] = { ...product, status: "error", error: error.message };
         errors.push({ row: product.rowIndex || i + 1, message: error.message });
       } else {
+
         updatedProducts[i] = { ...product, status: "success" };
         if (inserted?.id) {
           importedIds.push(inserted.id);
