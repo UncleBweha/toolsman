@@ -4,7 +4,6 @@ import { ArrowLeft, Grid, List, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import AnnouncementBar from "@/components/layout/AnnouncementBar";
 import ProductCard from "@/components/home/ProductCard";
 import { Button } from "@/components/ui/button";
 import {
