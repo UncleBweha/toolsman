@@ -1,4 +1,3 @@
-import AnnouncementBar from "@/components/layout/AnnouncementBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import HeroBanner from "@/components/home/HeroBanner";
@@ -12,7 +11,6 @@ import AnimatedSection from "@/components/home/AnimatedSection";
 const Index = () => {
   return (
     <div className="min-h-screen flex flex-col">
-      <AnnouncementBar />
       <Header />
       
       <main className="flex-1">

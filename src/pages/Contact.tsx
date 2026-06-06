@@ -1,5 +1,4 @@
 import { useState } from "react";
-import AnnouncementBar from "@/components/layout/AnnouncementBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -50,7 +49,6 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <AnnouncementBar />
       <Header />
       
       <main className="flex-1 container py-12">
