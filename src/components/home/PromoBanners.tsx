@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, Tag } from "lucide-react";
 import { getProxiedImageUrl } from "@/lib/imageUtils";
 
 const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US")}`;
@@ -10,7 +10,6 @@ const PromoBanners = () => {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["promo-banners"],
     queryFn: async () => {
-      // Pick newest discounted products
       const { data } = await supabase
         .from("products")
         .select("id, name, slug, price, original_price, image_url")
@@ -24,9 +23,9 @@ const PromoBanners = () => {
 
   if (isLoading) {
     return (
-      <section className="py-8 md:py-12 bg-background">
-        <div className="container flex justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <section className="py-4 md:py-8 bg-white">
+        <div className="container flex justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
         </div>
       </section>
     );
@@ -35,39 +34,44 @@ const PromoBanners = () => {
   if (!products.length) return null;
 
   return (
-    <section className="py-4 md:py-10 bg-background">
+    <section className="py-4 md:py-8 bg-white">
       <div className="container">
-        <h2 className="text-base md:text-2xl font-bold text-foreground mb-3 md:mb-5">Hot Deals</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-5">
-          {products.map((p, i) => {
-            const accent = i === 0;
-            const discount = Math.round(((p.original_price! - p.price) / p.original_price!) * 100);
+        {/* Section header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-[#FF5722]" />
+            <h2 className="text-base md:text-xl font-bold text-gray-900">Hot Deals</h2>
+          </div>
+          <Link
+            to="/deals"
+            className="text-xs text-[#FF5722] font-semibold hover:underline flex items-center gap-1"
+          >
+            View all <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+
+        {/* Uniform 4-column deal cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {products.map((p) => {
+            const discount = Math.round(
+              ((p.original_price! - p.price) / p.original_price!) * 100
+            );
             return (
               <Link
                 key={p.id}
                 to={`/product/${p.slug}`}
-                className={`relative rounded-2xl p-4 md:p-5 transition-all hover:-translate-y-1 overflow-hidden border border-border shadow-sm hover:shadow-md ${
-                  accent ? "bg-primary text-primary-foreground" : "bg-background text-foreground"
-                }`}
+                className="group flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
               >
-                <div className="flex flex-col h-full">
-                  <span className={`inline-block self-start text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mb-2 ${
-                    accent ? "bg-white/20" : "bg-primary/10 text-primary"
-                  }`}>
+                {/* Image */}
+                <div className="relative bg-gray-50 aspect-square overflow-hidden">
+                  <span className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
                     -{discount}%
                   </span>
-                  <h3 className="text-sm md:text-base font-bold line-clamp-2 mb-1">{p.name}</h3>
-                  <p className={`text-xs mb-3 ${accent ? "opacity-90" : "text-muted-foreground"}`}>
-                    {fmt(p.price)}{" "}
-                    <span className={`line-through ${accent ? "opacity-70" : "text-muted-foreground/70"}`}>
-                      {fmt(p.original_price!)}
-                    </span>
-                  </p>
                   {p.image_url && (
                     <img
                       src={getProxiedImageUrl(p.image_url)}
                       alt={p.name}
-                      className="w-full h-24 md:h-28 object-contain mb-3"
+                      className="w-full h-full object-contain p-3 group-hover:scale-[1.03] transition-transform duration-300"
                       onError={(e) => {
                         const t = e.target as HTMLImageElement;
                         t.onerror = null;
@@ -75,10 +79,19 @@ const PromoBanners = () => {
                       }}
                     />
                   )}
-                  <span className={`mt-auto inline-flex items-center gap-1 text-xs md:text-sm font-semibold ${
-                    accent ? "" : "text-primary"
-                  }`}>
-                    Shop Now <ArrowRight className="h-3.5 w-3.5" />
+                </div>
+
+                {/* Info */}
+                <div className="p-3 flex flex-col gap-1 flex-1">
+                  <h3 className="text-xs md:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">
+                    {p.name}
+                  </h3>
+                  <div className="mt-auto pt-2">
+                    <p className="text-sm font-extrabold text-gray-900">{fmt(p.price)}</p>
+                    <p className="text-[11px] text-gray-400 line-through">{fmt(p.original_price!)}</p>
+                  </div>
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs text-[#FF5722] font-semibold group-hover:underline">
+                    Shop Now <ArrowRight className="h-3 w-3" />
                   </span>
                 </div>
               </Link>

@@ -40,10 +40,10 @@ const AnnouncementBar = () => {
   return (
     <>
       {/* ── Sticky Main Bar ── */}
-      <div className="sticky top-0 z-[60] bg-black relative overflow-hidden h-12 md:h-14">
-        {/* Animated diagonal stripe background */}
+      <div className="sticky top-0 z-[60] bg-black overflow-hidden h-12 md:h-14">
+        {/* Subtle diagonal stripe background */}
         <div
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 opacity-[0.05] pointer-events-none"
           style={{
             backgroundImage: `repeating-linear-gradient(
               45deg,
@@ -55,67 +55,71 @@ const AnnouncementBar = () => {
           }}
         />
 
-        {/* Subtle orange glow behind phone number */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-14 bg-[#FF5722]/10 blur-3xl rounded-full pointer-events-none" />
+        <div className="container relative h-full flex items-center justify-between gap-2 overflow-hidden">
 
-        <div className="container relative h-full flex items-center justify-between">
-          {/* Left: CTA badges (desktop) */}
-          <div className="hidden md:flex items-center gap-2.5 flex-shrink-0">
-            <span className="inline-flex items-center gap-1 bg-[#FF5722] text-white text-[10px] font-black px-2 py-1 rounded-sm uppercase tracking-widest animate-pulse shadow-[0_0_12px_rgba(255,87,34,0.5)]">
-              <Zap className="h-3 w-3" />
+          {/* Left: CTA badge (desktop only) */}
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+            <span className="inline-flex items-center gap-1 bg-[#FF5722] text-white text-[10px] font-black px-2 py-1 rounded-sm uppercase tracking-widest animate-pulse">
+              <Zap className="h-3 w-3 flex-shrink-0" />
               Call Now
             </span>
-            <span className="text-yellow-400 text-[11px] font-bold uppercase tracking-wider">
+            <span className="text-yellow-400 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap">
               Order Directly
             </span>
           </div>
 
-          {/* Center: Phone number (hero) */}
+          {/* Center: Phone number — premium shimmer + subtle pulse */}
           <a
             href="tel:+254701043041"
-            className="flex items-center gap-2 md:gap-3 group mx-auto md:mx-0"
+            className="flex items-center gap-2 md:gap-3 group mx-auto md:mx-0 flex-shrink-0 min-w-0"
+            aria-label="Call us: 0701 043 041"
           >
-            <Phone className="h-5 w-5 md:h-6 md:w-6 text-[#FF5722] transition-colors duration-300 group-hover:text-white" />
-            <span className="text-white font-black text-2xl md:text-3xl tracking-wide drop-shadow-[0_0_14px_rgba(255,87,34,0.6)] transition-colors duration-300 group-hover:text-[#FF5722]">
+            <Phone
+              className="h-4 w-4 md:h-5 md:w-5 text-[#FF5722] flex-shrink-0 transition-colors duration-300 group-hover:text-white"
+              aria-hidden="true"
+            />
+            {/* shimmer applied via CSS class; gracefully falls back on reduced-motion */}
+            <span className="phone-number-shimmer font-black text-xl md:text-2xl lg:text-3xl tracking-wide whitespace-nowrap transition-all duration-300 group-hover:[animation:none] group-hover:text-[#FF5722] group-hover:[-webkit-text-fill-color:#FF5722]">
               0701 043 041
             </span>
           </a>
 
-          {/* Right: WhatsApp + Guarantees (desktop) */}
+          {/* Right: WhatsApp + label (desktop) */}
           <div className="hidden md:flex items-center gap-3 flex-shrink-0">
             <a
               href="https://wa.me/254701043041"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20BA5C] text-white font-bold text-[11px] px-3 py-1.5 rounded transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-[#25D366]/30"
+              className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20BA5C] text-white font-bold text-[11px] px-3 py-1.5 rounded transition-all duration-300 hover:scale-105 whitespace-nowrap"
             >
-              <WhatsAppIcon className="h-3.5 w-3.5" />
+              <WhatsAppIcon className="h-3.5 w-3.5 flex-shrink-0" />
               WhatsApp
             </a>
             <div className="text-right leading-tight">
-              <span className="block text-white/70 text-[10px] font-bold uppercase tracking-wider">
+              <span className="block text-white/70 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
                 Fast Response
               </span>
-              <span className="block text-white/40 text-[9px] font-medium uppercase tracking-wider">
+              <span className="block text-white/40 text-[9px] font-medium uppercase tracking-wider whitespace-nowrap">
                 Guaranteed
               </span>
             </div>
           </div>
 
-          {/* Mobile: WhatsApp icon */}
+          {/* Mobile: WhatsApp icon button */}
           <a
             href="https://wa.me/254701043041"
             target="_blank"
             rel="noopener noreferrer"
-            className="md:hidden flex-shrink-0 ml-2 p-1.5 rounded-full hover:bg-white/10 transition-colors active:scale-95"
+            className="md:hidden flex-shrink-0 p-1.5 rounded-full hover:bg-white/10 transition-colors active:scale-95"
             aria-label="Chat on WhatsApp"
           >
-            <WhatsAppIcon className="h-6 w-6 text-[#25D366]" />
+            <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
           </a>
+
         </div>
       </div>
 
-      {/* ── Desktop Ticker: Trust Badges (scrolls away, not sticky) ── */}
+      {/* ── Desktop Ticker: Trust Badges ── */}
       <div className="hidden md:block bg-[#FF5722] h-5 overflow-hidden relative">
         <div className="flex items-center h-full animate-[announcement-ticker_22s_linear_infinite] whitespace-nowrap will-change-transform">
           {trustContent}
@@ -127,6 +131,11 @@ const AnnouncementBar = () => {
         @keyframes announcement-ticker {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-\\[announcement-ticker_22s_linear_infinite\\] {
+            animation: none;
+          }
         }
       `}</style>
     </>

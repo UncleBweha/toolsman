@@ -124,7 +124,7 @@ const CategoryGrid = () => {
                   <img
                     src={getCategoryImage(category)}
                     alt={category.name}
-                    className="w-10 h-10 md:w-16 md:h-16 object-contain group-hover:scale-110 transition-transform duration-300"
+                    className="w-10 h-10 md:w-16 md:h-16 object-contain"
                   />
                 </div>
                 <h3 className="text-[11px] md:text-sm font-semibold text-gray-800 text-center group-hover:text-[#FF5722] transition-colors line-clamp-2 leading-tight">

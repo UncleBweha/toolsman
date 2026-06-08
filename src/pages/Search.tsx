@@ -118,7 +118,7 @@ const Search = () => {
       el.setAttribute("href", href);
     };
 
-    const base = "https://toolsman.lovable.app";
+    const base = "https://toolsman.co.ke";
     if (tagFilter) {
       const pretty = tagFilter.replace(/[-_]+/g, " ").trim();
       const title = `${pretty} in Kenya | Shop ${pretty} online — Toolsman`;

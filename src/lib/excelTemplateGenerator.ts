@@ -1,5 +1,4 @@
 import ExcelJS from "exceljs";
-import * as XLSX from "xlsx";
 
 export interface CategoryWithSubcategories {
   id: string;
@@ -163,35 +162,90 @@ export async function generateProductImportTemplate(
 }
 
 /**
- * Parses an uploaded Excel/CSV file. Prefers the "Products" sheet and
- * skips the "DropdownData" helper sheet.
+ * Parses an uploaded Excel/CSV file using ExcelJS.
+ * Prefers the "Products" sheet; skips the "DropdownData" helper sheet.
  */
 export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = e.target?.result;
-        if (!data) {
+        if (!data || !(data instanceof ArrayBuffer)) {
           reject(new Error("Failed to read file data"));
           return;
         }
-        const workbook = XLSX.read(data, { type: "array" });
-        if (workbook.SheetNames.length === 0) {
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(data);
+
+        if (!workbook.worksheets.length) {
           reject(new Error("No sheets found in the Excel file"));
           return;
         }
-        const sheetName =
-          workbook.SheetNames.find((n) => n.toLowerCase() === "products") ||
-          workbook.SheetNames.find((n) => n.toLowerCase() !== "dropdowndata") ||
-          workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" }) as Record<string, string>[];
-        if (jsonData.length === 0) {
-          reject(new Error("No data rows found. Make sure the headers row is intact and at least one product row is filled."));
+
+        // Prefer sheet named "Products"; fallback to first sheet that isn't DropdownData
+        const sheet =
+          workbook.getWorksheet("Products") ??
+          workbook.worksheets.find(
+            (ws) => ws.name.toLowerCase() !== "dropdowndata"
+          ) ??
+          workbook.worksheets[0];
+
+        if (!sheet) {
+          reject(new Error("No usable sheet found"));
           return;
         }
-        resolve(jsonData);
+
+        // Row 1 = headers
+        const headers: Record<number, string> = {};
+        const headerRow = sheet.getRow(1);
+        headerRow.eachCell((cell, colNumber) => {
+          const val = cell.value;
+          if (val != null && String(val).trim() !== "") {
+            headers[colNumber] = String(val).trim();
+          }
+        });
+
+        if (Object.keys(headers).length === 0) {
+          reject(new Error("No headers found in row 1"));
+          return;
+        }
+
+        const rows: Record<string, string>[] = [];
+        sheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return; // skip header row
+          const obj: Record<string, string> = {};
+          row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+            const header = headers[colNumber];
+            if (header) {
+              // Normalize cell value: handle Date objects, rich text, formulas
+              let val = cell.value;
+              if (val && typeof val === "object" && "richText" in (val as object)) {
+                val = (val as { richText: { text: string }[] }).richText
+                  .map((r) => r.text)
+                  .join("");
+              } else if (val instanceof Date) {
+                val = val.toISOString();
+              } else if (val && typeof val === "object" && "result" in (val as object)) {
+                val = String((val as { result: unknown }).result ?? "");
+              }
+              obj[header] = String(val ?? "").trim();
+            }
+          });
+          if (Object.keys(obj).length > 0) rows.push(obj);
+        });
+
+        if (rows.length === 0) {
+          reject(
+            new Error(
+              "No data rows found. Make sure the headers row is intact and at least one product row is filled."
+            )
+          );
+          return;
+        }
+
+        resolve(rows);
       } catch (error) {
         reject(error);
       }

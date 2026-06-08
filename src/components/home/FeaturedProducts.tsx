@@ -17,9 +17,9 @@ const FeaturedProducts = ({ title, showBanner = false, featured = false }: Featu
         <div className="flex items-center gap-3 mb-3 md:mb-5">
           <h2 className="text-base md:text-2xl font-bold text-foreground">{title}</h2>
           {showBanner && (
-            <div className="hidden md:flex items-center gap-2 bg-primary/10 px-4 py-1 rounded-full">
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse-soft" />
-              <span className="text-sm font-medium text-primary">Limited Time Offers</span>
+            <div className="hidden md:flex items-center gap-2 bg-[#FF5722]/10 px-3 py-1 rounded-full">
+              <div className="w-1.5 h-1.5 bg-[#FF5722] rounded-full animate-pulse" />
+              <span className="text-xs font-semibold text-[#FF5722]">New Arrivals</span>
             </div>
           )}
         </div>

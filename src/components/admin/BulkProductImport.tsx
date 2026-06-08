@@ -14,7 +14,6 @@ import {
 import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
 import { parseKeyFeatures } from "@/lib/featureParser";
 import { generateProductImportTemplate, parseExcelFile, CategoryWithSubcategories } from "@/lib/excelTemplateGenerator";
 

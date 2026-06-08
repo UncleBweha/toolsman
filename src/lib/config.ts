@@ -1,7 +1,7 @@
 // Global app configuration
 export const SITE = {
   name: "Toolsman Store",
-  url: "https://toolsman.lovable.app",
+  url: "https://toolsman.co.ke",
   whatsappNumber: "254701043041", // E.164 without +
   whatsappDisplay: "+254 701 043041",
   supportEmail: "support@toolsman.co.ke",

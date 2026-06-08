@@ -6,18 +6,19 @@ interface Props {
   productName: string;
   price: string;
   url: string;
+  className?: string;
 }
 
-export const WhatsAppOrderButton = ({ productName, price, url }: Props) => {
+export const WhatsAppOrderButton = ({ productName, price, url, className = "" }: Props) => {
   const href = buildWhatsAppOrderLink({ productName, price, url });
   return (
     <Button
       asChild
-      className="flex-1 bg-[#25D366] hover:bg-[#1EBE5D] text-white h-12 font-bold shadow-none"
+      className={`w-full bg-[#25D366] hover:bg-[#1EBE5D] active:bg-[#17a34a] text-white h-10 font-bold shadow-none text-xs rounded-md transition-colors ${className}`}
     >
       <a href={href} target="_blank" rel="noopener noreferrer" aria-label="Order via WhatsApp">
-        <MessageCircle className="h-5 w-5 mr-2" />
-        ORDER ON WHATSAPP
+        <MessageCircle className="h-4 w-4 mr-2 flex-shrink-0" />
+        ORDER VIA WHATSAPP
       </a>
     </Button>
   );

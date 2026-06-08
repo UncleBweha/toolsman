@@ -243,14 +243,20 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <div className="flex items-center h-full px-2">
-              {parentCategories.slice(0, 5).map((category) => {
+          <div className="flex items-center h-full px-2 overflow-hidden">
+              {parentCategories.slice(0, 3).concat(
+                // show 4th and 5th only on lg+
+                parentCategories.slice(3, 5).map(c => ({ ...c, _lgOnly: true }))
+              ).map((category: typeof parentCategories[0] & { _lgOnly?: boolean }) => {
                 const subcategories = getSubcategories(category.id);
                 return (
-                  <div key={category.id} className="relative group h-full flex items-center">
+                  <div
+                    key={category.id}
+                    className={`relative group h-full flex items-center${category._lgOnly ? " hidden lg:flex" : ""}`}
+                  >
                     <Link
                       to={`/category/${category.slug}`}
-                      className="text-gray-700 hover:text-[#FF5722] px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1"
+                      className="text-gray-700 hover:text-[#FF5722] px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1"
                     >
                       {category.name}
                       {subcategories.length > 0 && (
@@ -276,13 +282,14 @@ const Header = () => {
                   </div>
                 );
               })}
-              <Link to="/deals" className="text-gray-700 hover:text-[#FF5722] px-4 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-1">
+              <Link to="/deals" className="text-gray-700 hover:text-[#FF5722] px-3 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-1">
                 Deals <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">HOT</span>
               </Link>
-              <Link to="/new-arrivals" className="text-gray-700 hover:text-[#FF5722] px-4 py-2 text-sm font-medium whitespace-nowrap">
+              <Link to="/new-arrivals" className="hidden lg:flex text-gray-700 hover:text-[#FF5722] px-3 py-2 text-sm font-medium whitespace-nowrap">
                 New Arrivals
               </Link>
             </div>
+
           </div>
         </div>
       </nav>

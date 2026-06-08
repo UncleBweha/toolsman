@@ -417,27 +417,32 @@ const Product = () => {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2.5 pt-1.5">
-              <Button
-                className="flex-1 bg-[#FF5722] hover:bg-[#e64a19] text-white h-10 font-bold shadow-none text-xs"
-                onClick={handleAddToCart}
-              >
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                ADD TO CART
-              </Button>
-              <Button
-                className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] text-white h-10 font-bold shadow-none text-xs"
-                onClick={async () => { await handleAddToCart(); navigate("/cart"); }}
-              >
-                BUY NOW
-              </Button>
+            <div className="flex flex-col gap-2.5 pt-1.5">
+              {/* Primary CTA — WhatsApp (top, most prominent) */}
+              <WhatsAppOrderButton
+                productName={product.name}
+                price={formatPrice(product.price)}
+                url={`${SITE.url}/product/${product.slug}`}
+              />
+
+              {/* Secondary CTAs — Add to Cart + Buy Now (same size, side-by-side on sm+) */}
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <Button
+                  className="flex-1 bg-[#FF5722] hover:bg-[#e64a19] active:bg-[#c73d14] text-white h-10 font-bold shadow-none text-xs rounded-md"
+                  onClick={handleAddToCart}
+                >
+                  <ShoppingCart className="h-4 w-4 mr-2 flex-shrink-0" />
+                  ADD TO CART
+                </Button>
+                <Button
+                  className="flex-1 bg-[#0f172a] hover:bg-[#1e293b] active:bg-[#0a1020] text-white h-10 font-bold shadow-none text-xs rounded-md"
+                  onClick={async () => { await handleAddToCart(); navigate("/cart"); }}
+                >
+                  BUY NOW
+                </Button>
+              </div>
             </div>
 
-            <WhatsAppOrderButton
-              productName={product.name}
-              price={formatPrice(product.price)}
-              url={`${SITE.url}/product/${product.slug}`}
-            />
 
             <div className="flex items-center gap-4 pt-1 flex-wrap">
               <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#FF5722] font-medium transition-colors">
