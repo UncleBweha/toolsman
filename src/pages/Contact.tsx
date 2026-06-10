@@ -24,6 +24,17 @@ const Contact = () => {
     setIsSubmitting(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: "Please sign in to send a message",
+          description: "Or call us directly at +254 701 043041.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.functions.invoke("send-contact-email", {
         body: formData,
       });
