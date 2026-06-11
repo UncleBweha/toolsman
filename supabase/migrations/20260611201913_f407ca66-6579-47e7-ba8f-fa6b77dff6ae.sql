@@ -1,0 +1,2 @@
+UPDATE public.products SET image_url = NULL WHERE image_url = '[object Object]';
+UPDATE public.products SET images = ARRAY(SELECT unnest(images) EXCEPT SELECT '[object Object]') WHERE '[object Object]' = ANY(images);
