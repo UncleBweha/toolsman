@@ -1,16 +1,16 @@
-import { useEffect, useState, useRef } from "react";
-import { ArrowRight } from "lucide-react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getProxiedImageUrl } from "@/lib/imageUtils";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 const HeroBanner = () => {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [index, setIndex] = useState(0);
 
   const { data: pool = [] } = useQuery({
-    queryKey: ["hero-pool"],
+    queryKey: ["hero-slides"],
     queryFn: async () => {
       const { data } = await supabase
         .from("products")
@@ -18,9 +18,7 @@ const HeroBanner = () => {
         .eq("is_active", true)
         .not("image_url", "is", null)
         .order("created_at", { ascending: false })
-        .limit(100); // Larger selection to find products with actual photos
-      
-      // Ensure we only include products with a valid, non-empty, non-placeholder image
+        .limit(60);
       return (data || []).filter(
         (p) =>
           p.image_url &&
@@ -32,164 +30,158 @@ const HeroBanner = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Preload all product images to ensure instantaneous transition without flash/blank frames
+  // Pick up to 5 slides, stable order
+  const slides = useMemo(() => pool.slice(0, 5), [pool]);
+
+  // Preload images
   useEffect(() => {
-    if (!pool.length) return;
-    pool.forEach((product) => {
-      if (product.image_url) {
+    slides.forEach((p) => {
+      if (p.image_url) {
         const img = new Image();
-        img.src = getProxiedImageUrl(product.image_url);
+        img.src = getProxiedImageUrl(p.image_url);
       }
     });
-  }, [pool]);
+  }, [slides]);
 
-  // Fisher–Yates shuffle — fair rotation, no repeats
-  const slides = useRef<typeof pool>([]);
-  if (pool.length && (slides.current.length === 0 || slides.current !== pool)) {
-    const a = [...pool];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    slides.current = a;
-  }
-
+  // Auto-rotate every 4s
+  const timer = useRef<number | null>(null);
   useEffect(() => {
-    if (!slides.current.length) return;
-    const t = setInterval(() => {
-      setCurrentSlide((p) => {
-        const next = p + 1;
-        if (next >= slides.current.length) {
-          const a = [...pool];
-          for (let i = a.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [a[i], a[j]] = [a[j], a[i]];
-          }
-          if (a[0]?.id === slides.current[p]?.id && a.length > 1) {
-            [a[0], a[1]] = [a[1], a[0]];
-          }
-          slides.current = a;
-          return 0;
-        }
-        return next;
-      });
-    }, 4500); // 4.5 seconds for better reading time
-    return () => clearInterval(t);
-  }, [pool]);
+    if (slides.length < 2) return;
+    timer.current = window.setInterval(() => {
+      setIndex((p) => (p + 1) % slides.length);
+    }, 4000);
+    return () => {
+      if (timer.current) window.clearInterval(timer.current);
+    };
+  }, [slides.length]);
 
-  if (!slides.current.length) {
+  const goPrev = () => setIndex((p) => (p - 1 + slides.length) % slides.length);
+  const goNext = () => setIndex((p) => (p + 1) % slides.length);
+
+  if (!slides.length) {
     return (
-      <section className="py-2 md:py-3 bg-white">
-        <div className="container">
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-5 md:p-8 h-32 md:h-40 flex items-center justify-center text-muted-foreground text-sm">
-            Welcome to Toolsman — premium tools and equipment.
+      <section className="bg-white">
+        <div className="container py-3">
+          <div className="rounded-2xl bg-[#0f172a] h-[320px] md:h-[500px] flex items-center justify-center text-white/80 text-sm">
+            Loading featured products…
           </div>
         </div>
       </section>
     );
   }
 
-  const slide = slides.current[currentSlide % slides.current.length];
-  const eyebrows = ["Just Arrived", "Best Sellers", "Top Picks", "Trending Now", "Editor's Pick"];
-  const eyebrow = eyebrows[currentSlide % eyebrows.length];
+  const slide = slides[index];
+  const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US")}`;
 
   return (
-    <section className="py-2 md:py-3 bg-white">
-      <div className="container">
-        <div
-          className="relative bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
-          style={{ padding: "clamp(12px, 2vw, 24px)" }}
-        >
-          {/* Decorative blobs */}
-          <motion.div
-            className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#FF5722]/10 blur-3xl"
-            aria-hidden
-            animate={{ scale: [1, 1.12, 1], opacity: [0.5, 0.8, 0.5] }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <motion.div
-            className="pointer-events-none absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-blue-500/5 blur-3xl"
-            aria-hidden
-            animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          />
+    <section className="bg-white">
+      <div className="container py-3 md:py-4">
+        <div className="relative h-[320px] md:h-[500px] rounded-2xl overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#0f172a] shadow-md">
+          {/* Decorative accent */}
+          <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-[#FF5722]/15 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-yellow-400/5 blur-3xl pointer-events-none" />
 
-          <div
-            className="relative grid grid-cols-2 gap-3 md:gap-6 items-center"
-            style={{ minHeight: "130px" }}
-          >
-            {/* Left — text & CTA */}
+          <div className="relative h-full grid grid-cols-2 items-center px-5 md:px-12 lg:px-16">
+            {/* Text side */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={slide.id + "-text"}
-                className="space-y-1.5 md:space-y-3 min-w-0"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.35, ease: "easeInOut" }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="text-white space-y-2 md:space-y-4 max-w-md z-10"
               >
-                <p className="text-[9px] md:text-xs font-bold text-[#FF5722] tracking-wider uppercase">
-                  {eyebrow}
-                </p>
-                <h2 className="text-sm md:text-2xl lg:text-3xl font-extrabold text-gray-900 leading-tight line-clamp-2 md:line-clamp-3">
+                <span className="inline-block text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-[#FF5722]">
+                  Featured Product
+                </span>
+                <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl font-extrabold leading-tight line-clamp-3">
                   {slide.name}
-                </h2>
-                <p className="text-xs md:text-base font-bold text-gray-900">
-                  KSh {Number(slide.price).toLocaleString("en-US")}
-                  {slide.original_price && (
-                    <span className="ml-1.5 text-[10px] md:text-sm text-muted-foreground line-through font-normal">
-                      KSh {Number(slide.original_price).toLocaleString("en-US")}
+                </h1>
+                <p className="hidden md:block text-sm lg:text-base text-white/70 line-clamp-2">
+                  {slide.description?.replace(/<[^>]*>/g, "").slice(0, 140) ||
+                    "Premium quality tools and equipment, built for professionals."}
+                </p>
+                <div className="flex items-baseline gap-2 md:gap-3">
+                  <span className="text-lg md:text-3xl font-extrabold text-white">{fmt(slide.price)}</span>
+                  {slide.original_price && slide.original_price > slide.price && (
+                    <span className="text-xs md:text-base text-white/50 line-through">
+                      {fmt(slide.original_price)}
                     </span>
                   )}
-                </p>
-                <Link
-                  to={`/product/${slide.slug}`}
-                  className="inline-flex items-center justify-center bg-[#FF5722] hover:bg-[#e64a19] text-white font-semibold rounded-lg text-[11px] md:text-sm px-3 md:px-6 py-1.5 md:py-2.5 transition-all hover:scale-105 hover:shadow-md"
-                >
-                  Shop Now <ArrowRight className="h-3 w-3 md:h-4 md:w-4 ml-1 md:ml-1.5" />
-                </Link>
+                </div>
+                <div className="flex flex-wrap gap-2 md:gap-3 pt-1 md:pt-2">
+                  <Link
+                    to={`/product/${slide.slug}`}
+                    className="inline-flex items-center gap-1.5 bg-[#FF5722] hover:bg-[#e64a19] text-white font-bold rounded-lg px-3.5 md:px-6 py-2 md:py-3 text-xs md:text-sm transition-colors"
+                  >
+                    Shop Now <ArrowRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                  </Link>
+                  <Link
+                    to={`/product/${slide.slug}`}
+                    className="inline-flex items-center bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-lg px-3.5 md:px-6 py-2 md:py-3 text-xs md:text-sm transition-colors backdrop-blur-sm"
+                  >
+                    View Details
+                  </Link>
+                </div>
               </motion.div>
             </AnimatePresence>
 
-            {/* Right — product image */}
-            <div className="relative flex items-center justify-center">
+            {/* Image side */}
+            <div className="relative h-full flex items-center justify-center">
               <AnimatePresence mode="wait">
-                <motion.div
+                <motion.img
                   key={slide.id + "-img"}
-                  className="aspect-square md:aspect-auto md:h-[200px] lg:h-[240px] xl:h-[280px] w-full rounded-xl bg-white border border-gray-100 flex items-center justify-center overflow-hidden p-2 md:p-3"
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  src={getProxiedImageUrl(slide.image_url!)}
+                  alt={slide.name}
+                  loading="eager"
+                  decoding="async"
+                  initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.35, ease: "easeInOut" }}
-                  whileHover={{ scale: 1.02 }}
-                >
-                  <img
-                    src={getProxiedImageUrl(slide.image_url)}
-                    alt={slide.name}
-                    loading="eager"
-                    decoding="async"
-                    className="max-w-full max-h-full object-contain"
-                    onError={(e) => {
-                      const t = e.target as HTMLImageElement;
-                      t.onerror = null;
-                      t.src = "/placeholder.svg";
-                    }}
-                  />
-                </motion.div>
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  className="max-h-[260px] md:max-h-[420px] max-w-full object-contain drop-shadow-2xl"
+                  onError={(e) => {
+                    const t = e.target as HTMLImageElement;
+                    t.onerror = null;
+                    t.src = "/placeholder.svg";
+                  }}
+                />
               </AnimatePresence>
             </div>
           </div>
 
-          {/* Slide indicator dots */}
-          {slides.current.length > 1 && (
-            <div className="flex gap-1.5 justify-center mt-2 md:mt-3">
-              {Array.from({ length: Math.min(5, slides.current.length) }).map((_, index) => (
-                <span
-                  key={index}
-                  className={`h-1 rounded-full transition-all ${
-                    index === currentSlide % 5 ? "w-5 bg-[#FF5722]" : "w-1 bg-gray-300"
+          {/* Arrows */}
+          {slides.length > 1 && (
+            <>
+              <button
+                onClick={goPrev}
+                aria-label="Previous slide"
+                className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 h-9 w-9 md:h-11 md:w-11 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white flex items-center justify-center border border-white/20 transition-colors"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                onClick={goNext}
+                aria-label="Next slide"
+                className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 h-9 w-9 md:h-11 md:w-11 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white flex items-center justify-center border border-white/20 transition-colors"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          )}
+
+          {/* Dots */}
+          {slides.length > 1 && (
+            <div className="absolute bottom-3 md:bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setIndex(i)}
+                  aria-label={`Go to slide ${i + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === index ? "w-6 bg-[#FF5722]" : "w-1.5 bg-white/40 hover:bg-white/60"
                   }`}
-                  aria-hidden
                 />
               ))}
             </div>

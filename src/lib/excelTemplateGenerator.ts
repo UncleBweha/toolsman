@@ -219,7 +219,7 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
           row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
             const header = headers[colNumber];
             if (header) {
-              // Normalize cell value: handle Date objects, rich text, formulas
+              // Normalize cell value: handle Date objects, rich text, formulas, hyperlinks
               let val = cell.value;
               if (val && typeof val === "object" && "richText" in (val as object)) {
                 val = (val as { richText: { text: string }[] }).richText
@@ -229,6 +229,12 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
                 val = val.toISOString();
               } else if (val && typeof val === "object" && "result" in (val as object)) {
                 val = String((val as { result: unknown }).result ?? "");
+              } else if (val && typeof val === "object" && "hyperlink" in (val as object)) {
+                // ExcelJS hyperlink cells: { text, hyperlink, target }
+                const hv = val as { hyperlink?: string; text?: string; target?: string };
+                val = hv.hyperlink || hv.target || hv.text || "";
+              } else if (val && typeof val === "object" && "text" in (val as object)) {
+                val = String((val as { text: unknown }).text ?? "");
               }
               obj[header] = String(val ?? "").trim();
             }
