@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,65 +32,108 @@ const fallbackImages: Record<string, string> = {
   "electrical-supplies": categoryElectrical,
   "computer-mobile-accessories": categoryPhoneAccessories,
   "home-appliances": categoryKitchen,
-  "measuring-tools": categoryMeasuring,
 };
 
 const CategoryGrid = () => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const { data: categories = [], isLoading } = useQuery({
-    queryKey: ["home-categories"],
+    queryKey: ["active-categories"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
         .select("*")
         .eq("is_active", true)
         .is("parent_id", null)
-        .order("display_order", { ascending: true })
-        .limit(8);
+        .order("display_order", { ascending: true });
       if (error) throw error;
       return data;
     },
   });
 
-  const getImage = (c: { image_url: string | null; slug: string }) =>
-    c.image_url || fallbackImages[c.slug] || "/placeholder.svg";
+  const scroll = (direction: "left" | "right") => {
+    if (scrollRef.current) {
+      const scrollAmount = 280;
+      scrollRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const getCategoryImage = (category: { image_url: string | null; slug: string }) => {
+    if (category.image_url) return category.image_url;
+    return fallbackImages[category.slug] || "/placeholder.svg";
+  };
+
+  if (isLoading) {
+    return (
+      <section className="py-8 md:py-12 bg-white">
+        <div className="container">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">
+            Popular Departments
+          </h2>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-[#FF5722]" />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (categories.length === 0) return null;
 
   return (
-    <section className="py-8 md:py-14 bg-white">
+    <section className="py-4 md:py-10 bg-white">
       <div className="container">
-        <div className="mb-5 md:mb-8">
-          <h2 className="text-lg md:text-2xl font-extrabold text-gray-900 tracking-tight">
+        <div className="flex items-center justify-between mb-3 md:mb-5">
+          <h2 className="text-base md:text-2xl font-bold text-gray-900">
             Shop by Category
           </h2>
-          <p className="text-xs md:text-sm text-gray-500 mt-1">Browse our top departments</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => scroll("left")}
+              className="h-10 w-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 hover:bg-gray-50 transition-all text-gray-700 hover:text-[#FF5722]"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => scroll("right")}
+              className="h-10 w-10 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 hover:bg-gray-50 transition-all text-gray-700 hover:text-[#FF5722]"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-[#FF5722]" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 md:gap-4">
-            {categories.map((c) => (
-              <Link
-                key={c.id}
-                to={`/category/${c.slug}`}
-                className="group bg-white rounded-xl border border-gray-200 hover:border-[#FF5722] hover:shadow-md transition-all duration-200 p-4 md:p-5 flex flex-col items-center justify-center text-center gap-3"
-              >
-                <div className="w-14 h-14 md:w-16 md:h-16 flex items-center justify-center">
+        <div
+          ref={scrollRef}
+          className="flex gap-3 md:gap-5 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory"
+        >
+          {categories.map((category, index) => (
+            <Link
+              key={category.id}
+              to={`/category/${category.slug}`}
+              className="flex-shrink-0 w-20 md:w-32 group snap-start"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl bg-white shadow-sm border border-gray-200 flex items-center justify-center overflow-hidden group-hover:border-[#FF5722] transition-all duration-300">
                   <img
-                    src={getImage(c)}
-                    alt={c.name}
-                    loading="lazy"
-                    className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                    src={getCategoryImage(category)}
+                    alt={category.name}
+                    className="w-10 h-10 md:w-16 md:h-16 object-contain"
                   />
                 </div>
-                <h3 className="text-xs md:text-sm font-semibold text-gray-800 group-hover:text-[#FF5722] transition-colors leading-tight line-clamp-2">
-                  {c.name}
+                <h3 className="text-[11px] md:text-sm font-semibold text-gray-800 text-center group-hover:text-[#FF5722] transition-colors line-clamp-2 leading-tight">
+                  {category.name}
                 </h3>
-              </Link>
-            ))}
-          </div>
-        )}
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -122,7 +122,7 @@ const DealsCountdown = () => {
             <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-[#FF5722]">
               <Zap className="h-3.5 w-3.5 text-white" />
             </span>
-            <h2 className="text-base md:text-xl font-bold text-gray-900">Today's Deals</h2>
+            <h2 className="text-base md:text-xl font-bold text-gray-900">Flash Deals</h2>
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold uppercase tracking-wide">
               Today Only
             </span>

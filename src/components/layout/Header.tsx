@@ -51,7 +51,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+    <header className="sticky top-12 md:top-14 z-50 bg-white border-b border-gray-200">
       {/* Main Header */}
       <div className="container py-2.5 md:py-3">
         <div className="flex items-center justify-between gap-6">
