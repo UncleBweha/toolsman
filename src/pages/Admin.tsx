@@ -10,6 +10,7 @@ import CategoryManagement from "@/components/admin/CategoryManagement";
 import BulkProductImport from "@/components/admin/BulkProductImport";
 import SalesReports from "@/components/admin/SalesReports";
 import WatermarkSettings from "@/components/admin/WatermarkSettings";
+import FeatureCleanupTool from "@/components/admin/FeatureCleanupTool";
 import { Loader2 } from "lucide-react";
 
 const Admin = () => {
@@ -48,6 +49,7 @@ const Admin = () => {
         <Route path="import" element={<BulkProductImport />} />
         <Route path="reports" element={<SalesReports />} />
         <Route path="settings" element={<WatermarkSettings />} />
+        <Route path="feature-cleanup" element={<FeatureCleanupTool />} />
       </Routes>
     </AdminLayout>
   );

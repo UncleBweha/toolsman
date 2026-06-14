@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, ShoppingCart, Users, Package, FolderTree,
   Settings, Menu, Search, Bell, ExternalLink, ChevronLeft,
-  Upload, BarChart3, X,
+  Upload, BarChart3, X, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -28,9 +28,10 @@ const NAV = [
   {
     title: "CATALOG",
     items: [
-      { href: "/admin/products",   label: "Products",    icon: Package },
-      { href: "/admin/categories", label: "Categories",  icon: FolderTree },
-      { href: "/admin/import",     label: "Bulk Import", icon: Upload },
+      { href: "/admin/products",        label: "Products",        icon: Package },
+      { href: "/admin/categories",      label: "Categories",      icon: FolderTree },
+      { href: "/admin/import",          label: "Bulk Import",     icon: Upload },
+      { href: "/admin/feature-cleanup", label: "Feature Cleanup", icon: Wand2 },
     ],
   },
   {

@@ -322,6 +322,13 @@ const ProductManagement = () => {
     const isSubcat = cat?.parent_id != null;
     const existingManualTags = product.tags || [];
 
+    // Restore features: join the stored clean array back to one-per-line
+    // so the admin sees exactly what will be saved — no surprises.
+    const featuresForTextarea = (product.key_features || [])
+      .map(f => f.trim())
+      .filter(Boolean)
+      .join("\n");
+
     setFormData({
       name: product.name,
       slug: product.slug,
@@ -329,14 +336,13 @@ const ProductManagement = () => {
       price: product.price,
       original_price: product.original_price,
       sku: product.sku || "",
-      // stock not tracked
       category_id: isSubcat ? (cat?.parent_id || "") : (product.category_id || ""),
       subcategory_id: isSubcat ? (product.category_id || "") : "",
       image_url: product.image_url || "",
       images: product.images || [],
       brand: product.brand || "",
       tags: existingManualTags.join(", "),
-      key_features: (product.key_features || []).join("\n"),
+      key_features: featuresForTextarea,
       status: product.status || "active",
       is_featured: product.is_featured,
       is_active: product.is_active,
@@ -902,11 +908,32 @@ const ProductManagement = () => {
                   id="key_features"
                   value={formData.key_features}
                   onChange={(e) => setFormData({ ...formData, key_features: e.target.value })}
-                  placeholder={"20V Max Lithium-Ion Battery\n1/2 inch chuck size\nVariable speed trigger"}
-                  rows={4}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  placeholder={"20V Max Lithium-Ion Battery\n1/2 inch chuck size\nVariable speed trigger (0–1800 RPM)\nIncludes 1/4\", 3/8\" and 1/2\" drive sockets"}
+                  rows={5}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-mono"
                 />
-                <p className="text-xs text-muted-foreground">One feature per line</p>
+                <p className="text-xs text-muted-foreground">
+                  One feature per line. You may also paste supplier text or paragraphs — the system will clean and format them automatically before saving.
+                </p>
+                {/* Live preview of parsed output */}
+                {formData.key_features.trim() && (() => {
+                  const preview = parseKeyFeatures(formData.key_features);
+                  return (
+                    <div className="rounded-md border border-dashed border-green-300 bg-green-50 p-3">
+                      <p className="text-[10px] font-semibold text-green-700 uppercase tracking-wide mb-1.5">
+                        Preview ({preview.length} feature{preview.length !== 1 ? 's' : ''})
+                      </p>
+                      <ul className="space-y-1">
+                        {preview.map((f, i) => (
+                          <li key={i} className="text-xs text-green-800 flex items-start gap-1.5">
+                            <span className="text-green-500 font-bold mt-0.5">✓</span>
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex gap-6">

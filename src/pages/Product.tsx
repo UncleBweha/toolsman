@@ -484,9 +484,12 @@ const Product = () => {
                   </h3>
                   <ul className="space-y-3">
                     {features.map((feature, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700 leading-snug">
+                      <li
+                        key={i}
+                        className="flex items-start gap-2.5 text-sm text-gray-700 leading-relaxed"
+                      >
                         <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
-                        <span>{feature}</span>
+                        <span className="break-words min-w-0">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -504,9 +507,9 @@ const Product = () => {
                       "Secure & flexible payment options",
                       "Dedicated after-sales support",
                     ].map((item) => (
-                      <li key={item} className="flex items-start gap-2.5 text-sm text-gray-700 leading-snug">
+                      <li key={item} className="flex items-start gap-2.5 text-sm text-gray-700 leading-relaxed">
                         <Check className="h-4 w-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
-                        <span>{item}</span>
+                        <span className="break-words min-w-0">{item}</span>
                       </li>
                     ))}
                   </ul>
