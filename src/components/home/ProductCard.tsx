@@ -90,12 +90,12 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
 
   return (
     <div
-      className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-sm border border-gray-100 hover:shadow-lg transition-shadow duration-200 group flex flex-col h-full relative"
+      className="bg-white rounded-xl p-3 shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full relative"
       onMouseEnter={handlePrefetch}
     >
       <Link to={productLink} className="block">
-        {/* Image container — NO CSS transform on img to prevent rasterization blur */}
-        <div className="relative w-full aspect-square bg-white rounded-xl overflow-hidden mb-2.5">
+        {/* Image container */}
+        <div className="relative w-full aspect-square bg-white rounded-lg overflow-hidden mb-2.5">
           {discountPercent > 0 && (
             <span className="absolute top-1.5 left-1.5 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
               -{discountPercent}%
@@ -112,12 +112,6 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
           >
             <Heart className={cn("h-3.5 w-3.5", wished && "fill-current")} />
           </button>
-          {/*
-            CRITICAL: No transform (scale/translate) on <img> — CSS transforms
-            force GPU compositing which rasterizes at base resolution and scales
-            the bitmap, causing blur on both mobile and desktop.
-            Hover effect is on the card shadow instead.
-          */}
           <img
             src={proxiedImage}
             alt={name}
@@ -136,13 +130,13 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
 
       <div className="flex flex-col flex-grow gap-1">
         <Link to={productLink} className="block">
-          <h3 className="text-xs sm:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug min-h-[2.5em] hover:text-[#FF5722] transition-colors">
+          <h3 className="text-xs sm:text-sm font-medium text-gray-900 line-clamp-2 leading-snug min-h-[2.5em] hover:text-[#FF5722] transition-colors">
             {name}
           </h3>
         </Link>
 
         <div className="flex items-baseline gap-1.5 flex-wrap mt-0.5">
-          <span className="text-sm sm:text-base font-extrabold text-[#FF5722]">
+          <span className="text-sm sm:text-base font-bold text-[#FF5722]">
             {formatPrice(price)}
           </span>
           {originalPrice && originalPrice > price && (
@@ -155,7 +149,7 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
         <button
           onClick={handleAddToCart}
           disabled={!productId || adding}
-          className="mt-2 w-full bg-[#FF5722] hover:bg-[#e64a19] active:scale-[0.98] disabled:opacity-50 text-white font-bold rounded-xl text-[11px] sm:text-xs py-2 transition-all flex items-center justify-center gap-1.5"
+          className="mt-auto w-full bg-[#FF5722] hover:bg-[#e64a19] active:scale-[0.98] disabled:opacity-50 text-white font-bold rounded-lg text-[11px] sm:text-xs py-2 md:py-2.5 transition-all duration-200 flex items-center justify-center gap-1.5 md:opacity-0 md:group-hover:opacity-100"
         >
           {adding ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

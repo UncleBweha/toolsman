@@ -47,7 +47,7 @@ const StepIndicator = ({ current }: { current: number }) => (
       return (
         <div key={label} className="flex items-center gap-2 flex-shrink-0">
           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-            done ? "bg-green-500 text-white" : active ? "bg-[#0f172a] text-white" : "bg-gray-100 text-gray-400 border border-gray-200"
+            done ? "bg-green-500 text-white" : active ? "bg-[#0B1D3A] text-white" : "bg-gray-100 text-gray-400 border border-gray-200"
           }`}>
             {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
           </div>
@@ -370,15 +370,15 @@ const Checkout = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50/30">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       <main className="flex-1 container py-8 max-w-6xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Checkout</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Secure Checkout</h1>
         <StepIndicator current={step} />
 
-        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12">
+        <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
           {/* Step content */}
-          <div className="lg:col-span-7 bg-white border border-gray-200 rounded-xl shadow-sm p-6 md:p-8">
+          <div className="lg:col-span-7 bg-white border border-gray-100 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.03)] p-6 md:p-8">
 
             {/* Step 0: Shipping address */}
             {step === 0 && (

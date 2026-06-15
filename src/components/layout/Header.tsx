@@ -67,19 +67,20 @@ const Header = () => {
 
           {/* Search Bar - Desktop */}
           <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-2xl mx-8">
-            <div className="relative w-full flex items-center bg-white border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-[#FF5722] focus-within:border-transparent">
+            <div className="relative w-full flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden transition-all focus-within:ring-2 focus-within:ring-[#FF5722]/40 focus-within:border-transparent focus-within:shadow-sm">
+              <Search className="absolute left-4 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search products, brands, categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-0 outline-none px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-500"
+                className="flex-1 bg-transparent border-0 outline-none pl-11 pr-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400"
               />
               <button 
                 type="submit" 
-                className="bg-[#FF5722] hover:bg-[#e64a19] text-white px-8 py-2.5 font-semibold text-sm transition-colors"
+                className="bg-[#FF5722] hover:bg-[#e64a19] text-white px-8 py-2.5 font-bold text-xs uppercase tracking-wider transition-colors"
               >
-                SEARCH
+                Search
               </button>
             </div>
           </form>
@@ -190,15 +191,16 @@ const Header = () => {
 
         {/* Search Bar - Mobile */}
         <form onSubmit={handleSearch} className="md:hidden mt-4">
-          <div className="relative w-full flex items-center bg-white border border-gray-300 rounded-md overflow-hidden">
+          <div className="relative w-full flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
+            <Search className="absolute left-3 h-4 w-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent border-0 outline-none px-3 py-2 text-sm text-gray-900"
+              className="flex-1 bg-transparent border-0 outline-none pl-9 pr-3 py-2 text-sm text-gray-900 placeholder:text-gray-400"
             />
-            <button type="submit" className="bg-[#FF5722] text-white px-4 py-2 text-sm font-semibold">
+            <button type="submit" className="bg-[#FF5722] text-white px-4 py-2 text-xs font-bold uppercase tracking-wider">
               Go
             </button>
           </div>

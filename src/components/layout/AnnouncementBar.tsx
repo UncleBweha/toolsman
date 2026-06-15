@@ -41,25 +41,11 @@ const AnnouncementBar = () => {
     <>
       {/* ── Sticky Main Bar ── */}
       <div className="sticky top-0 z-[60] bg-black overflow-hidden h-12 md:h-14">
-        {/* Subtle diagonal stripe background */}
-        <div
-          className="absolute inset-0 opacity-[0.05] pointer-events-none"
-          style={{
-            backgroundImage: `repeating-linear-gradient(
-              45deg,
-              transparent,
-              transparent 10px,
-              #FF5722 10px,
-              #FF5722 20px
-            )`,
-          }}
-        />
-
         <div className="container relative h-full flex items-center justify-between gap-2 overflow-hidden">
 
           {/* Left: CTA badge (desktop only) */}
           <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-            <span className="inline-flex items-center gap-1 bg-[#FF5722] text-white text-[10px] font-black px-2 py-1 rounded-sm uppercase tracking-widest animate-pulse">
+            <span className="inline-flex items-center gap-1 bg-[#FF5722] text-white text-[10px] font-bold px-2 py-1 rounded-sm uppercase tracking-widest">
               <Zap className="h-3 w-3 flex-shrink-0" />
               Call Now
             </span>
@@ -68,7 +54,7 @@ const AnnouncementBar = () => {
             </span>
           </div>
 
-          {/* Center: Phone number — premium shimmer + subtle pulse */}
+          {/* Center: Phone number — clean high-contrast style */}
           <a
             href="tel:+254701043041"
             className="flex items-center gap-2 md:gap-3 group mx-auto md:mx-0 flex-shrink-0 min-w-0"
@@ -78,8 +64,7 @@ const AnnouncementBar = () => {
               className="h-4 w-4 md:h-5 md:w-5 text-[#FF5722] flex-shrink-0 transition-colors duration-300 group-hover:text-white"
               aria-hidden="true"
             />
-            {/* shimmer applied via CSS class; gracefully falls back on reduced-motion */}
-            <span className="phone-number-shimmer font-black text-xl md:text-2xl lg:text-3xl tracking-wide whitespace-nowrap transition-all duration-300 group-hover:[animation:none] group-hover:text-[#FF5722] group-hover:[-webkit-text-fill-color:#FF5722]">
+            <span className="font-extrabold text-white text-lg md:text-xl lg:text-2xl tracking-wide whitespace-nowrap transition-all duration-300 group-hover:text-[#FF5722]">
               0701 043 041
             </span>
           </a>
@@ -121,7 +106,7 @@ const AnnouncementBar = () => {
 
       {/* ── Desktop Ticker: Trust Badges ── */}
       <div className="hidden md:block bg-[#FF5722] h-5 overflow-hidden relative">
-        <div className="flex items-center h-full animate-[announcement-ticker_22s_linear_infinite] whitespace-nowrap will-change-transform">
+        <div className="flex items-center h-full animate-[announcement-ticker_35s_linear_infinite] whitespace-nowrap will-change-transform">
           {trustContent}
           {trustContent}
         </div>
@@ -133,7 +118,7 @@ const AnnouncementBar = () => {
           100% { transform: translateX(-50%); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .animate-\\[announcement-ticker_22s_linear_infinite\\] {
+          .animate-\\[announcement-ticker_35s_linear_infinite\\] {
             animation: none;
           }
         }

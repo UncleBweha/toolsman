@@ -196,9 +196,9 @@ const Product = () => {
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
       <AntiCopyProtection />
-      <main className="flex-1 container py-4 md:py-5" data-protected>
+      <main className="flex-1 container py-6 md:py-8" data-protected>
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 flex-wrap">
           <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
           <ChevronRight className="h-3 w-3" />
           {product.category && (
@@ -212,7 +212,7 @@ const Product = () => {
           <span className="text-gray-900 font-medium truncate max-w-[60vw]">{product.name}</span>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-4 lg:gap-6">
+        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
           {/* Images Column */}
           <div className="lg:col-span-5 flex flex-col-reverse md:flex-row gap-3 md:gap-4">
             {images.length > 1 && (
@@ -223,7 +223,7 @@ const Product = () => {
                     onClick={() => setSelectedImage(index)}
                     className={`w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all p-1 bg-white flex-shrink-0 ${
                       selectedImage === index
-                        ? "border-[#FF5722]"
+                        ? "border-[#FF5722] ring-2 ring-[#FF5722]/10"
                         : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
@@ -474,7 +474,7 @@ const Product = () => {
             {(() => {
               const features = parseKeyFeatures(product.key_features);
               return features.length > 0 ? (
-              <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
+              <Card className="bg-[#0B1D3A]/[0.02] border border-[#0B1D3A]/10 shadow-[0_4px_12px_rgba(0,0,0,0.02)] rounded-xl overflow-hidden lg:sticky lg:top-24">
                 <CardContent className="p-5">
                   <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-4 flex items-center gap-2">
                     <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#FF5722] flex-shrink-0">
@@ -497,7 +497,7 @@ const Product = () => {
               </Card>
             ) : (
 
-              <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
+              <Card className="bg-[#0B1D3A]/[0.02] border border-[#0B1D3A]/10 shadow-[0_4px_12px_rgba(0,0,0,0.02)] rounded-xl overflow-hidden lg:sticky lg:top-24">
                 <CardContent className="p-5">
                   <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-3">Why Buy From Us</h3>
                   <ul className="space-y-3">
