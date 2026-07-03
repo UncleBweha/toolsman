@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Clock, Zap } from "lucide-react";
-import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { getProductAlt } from "@/lib/imageUtils";
+import OptimizedImage from "@/components/OptimizedImage";
 
 /* ─── Countdown helpers ─── */
 function getEndOfDay() {
@@ -51,13 +52,12 @@ const DealCard = ({
         <span className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
           -{discount}%
         </span>
-        <img
-          src={getProxiedImageUrl(image)}
-          alt={name}
+        <OptimizedImage
+          src={image}
+          alt={getProductAlt(name)}
+          width={300}
+          height={300}
           className="w-full h-full object-contain p-3 group-hover:scale-[1.03] transition-transform duration-300"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "/placeholder.svg";
-          }}
         />
       </div>
 

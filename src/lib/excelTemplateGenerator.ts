@@ -1,14 +1,23 @@
 import ExcelJS from "exceljs";
 
+export interface SubSubCategory {
+  id: string;
+  name: string;
+  parent_id: string;
+}
+
+export interface SubcategoryWithChildren {
+  id: string;
+  name: string;
+  parent_id: string;
+  children?: SubSubCategory[];
+}
+
 export interface CategoryWithSubcategories {
   id: string;
   name: string;
   parent_id: string | null;
-  subcategories: Array<{
-    id: string;
-    name: string;
-    parent_id: string;
-  }>;
+  subcategories: SubcategoryWithChildren[];
 }
 
 /** 0-based column index → Excel letter ("A", "Z", "AA", …). */
@@ -24,16 +33,12 @@ function colIndexToLetter(idx: number): string {
 
 /**
  * Generates a product-import Excel template with dependent
- * Category → Sub-category dropdowns.
+ * Category → Sub-category → Sub-sub-category dropdowns.
  *
  * Layout of the hidden "DropdownData" sheet:
- *   Row 1, columns B…  = parent category name (header for each column)
- *   Rows 2…,  column A = list of all parent category names (AllCategories)
- *   Rows 2…,  columns B… = subcategories under each parent
- *
- * The subcategory dropdown uses OFFSET + MATCH so it works for any
- * category name (including names with spaces or special characters,
- * which can break the alternative INDIRECT/named-range approach).
+ *   Row 1, columns B…  = parent category name (header for each column of subs)
+ *   Rows 2…            = subcategories under each parent
+ *   A separate "SubSubData" sheet holds sub-subcategory lists keyed by subcategory name.
  */
 export async function generateProductImportTemplate(
   categories: CategoryWithSubcategories[]
@@ -42,7 +47,7 @@ export async function generateProductImportTemplate(
   workbook.creator = "Toolsman Admin";
   workbook.created = new Date();
 
-  // ── 1. Hidden DropdownData sheet ─────────────────────────────────────────
+  // ── 1. Hidden DropdownData sheet (parent → subcategory) ──────────────────
   const ddSheet = workbook.addWorksheet("DropdownData", { state: "veryHidden" });
 
   const categoryNames = categories.map((c) => c.name);
@@ -71,30 +76,53 @@ export async function generateProductImportTemplate(
     );
   }
 
-  const lastCatCol = colIndexToLetter(categories.length); // last col letter for B..lastCatCol
-  // Lookup range used by MATCH (the header row of category columns)
+  const lastCatCol = colIndexToLetter(categories.length);
   const headerRange = `DropdownData!$B$1:$${lastCatCol}$1`;
-  // Whole subcategory grid (rows 2..maxSubs+1) — OFFSET works off DropdownData!$A$1
   const subGridRows = Math.max(1, maxSubs);
 
-  // ── 2. Products sheet ────────────────────────────────────────────────────
+  // ── 2. Hidden SubSubData sheet (subcategory → sub-subcategory) ───────────
+  const ssSheet = workbook.addWorksheet("SubSubData", { state: "veryHidden" });
+
+  // Collect all subcategories that have children
+  const allSubcats = categories.flatMap(c => c.subcategories);
+  const maxSubSubs = Math.max(0, ...allSubcats.map(s => (s.children || []).length));
+
+  // Column A = list of all subcategory names (rows 2..N+1) — used for MATCH
+  allSubcats.forEach((sub, i) => {
+    ssSheet.getCell(i + 2, 1).value = sub.name;
+  });
+  // Columns B+ = one per subcategory. Row 1 = subcategory name header.
+  allSubcats.forEach((sub, subIdx) => {
+    const col = subIdx + 2;
+    ssSheet.getCell(1, col).value = sub.name;
+    (sub.children || []).forEach((child, childIdx) => {
+      ssSheet.getCell(childIdx + 2, col).value = child.name;
+    });
+  });
+
+  const lastSubCol = colIndexToLetter(allSubcats.length);
+  const subHeaderRange = `SubSubData!$B$1:$${lastSubCol}$1`;
+  const subSubGridRows = Math.max(1, maxSubSubs);
+
+  // ── 3. Products sheet ─────────────────────────────────────────────────────
   const ws = workbook.addWorksheet("Products");
   ws.columns = [
-    { header: "name", key: "name", width: 25 },
-    { header: "description", key: "description", width: 40 },
-    { header: "price", key: "price", width: 12 },
+    { header: "name",           key: "name",           width: 25 },
+    { header: "description",    key: "description",    width: 40 },
+    { header: "price",          key: "price",          width: 12 },
     { header: "original_price", key: "original_price", width: 15 },
-    { header: "sku", key: "sku", width: 12 },
-    { header: "category", key: "category", width: 24 },        // col F
-    { header: "sub_category", key: "sub_category", width: 24 }, // col G
-    { header: "brand", key: "brand", width: 15 },
-    { header: "tags", key: "tags", width: 25 },
-    { header: "key_features", key: "key_features", width: 30 },
-    { header: "image_url", key: "image_url", width: 35 },
-    { header: "image_url_2", key: "image_url_2", width: 35 },
-    { header: "image_url_3", key: "image_url_3", width: 35 },
-    { header: "image_url_4", key: "image_url_4", width: 35 },
-    { header: "image_url_5", key: "image_url_5", width: 35 },
+    { header: "sku",            key: "sku",            width: 15 },
+    { header: "category",       key: "category",       width: 24 }, // col F
+    { header: "sub_category",   key: "sub_category",   width: 24 }, // col G
+    { header: "sub_sub_category", key: "sub_sub_category", width: 24 }, // col H
+    { header: "brand",          key: "brand",          width: 15 },
+    { header: "tags",           key: "tags",           width: 25 },
+    { header: "key_features",   key: "key_features",   width: 30 },
+    { header: "image_url",      key: "image_url",      width: 35 },
+    { header: "image_url_2",    key: "image_url_2",    width: 35 },
+    { header: "image_url_3",    key: "image_url_3",    width: 35 },
+    { header: "image_url_4",    key: "image_url_4",    width: 35 },
+    { header: "image_url_5",    key: "image_url_5",    width: 35 },
   ];
   ws.getRow(1).font = { bold: true };
 
@@ -107,9 +135,10 @@ export async function generateProductImportTemplate(
     sku: "SKU-001",
     category: categoryNames[0] ?? "",
     sub_category: categories[0]?.subcategories[0]?.name ?? "",
+    sub_sub_category: categories[0]?.subcategories[0]?.children?.[0]?.name ?? "",
     brand: "Brand Name",
     tags: "tag1, tag2, tag3",
-    key_features: "Durable construction. Easy installation. Rust resistant.",
+    key_features: "20V Battery, Variable Speed, Safety Guard",
     image_url: "https://example.com/image1.jpg",
   });
 
@@ -117,7 +146,7 @@ export async function generateProductImportTemplate(
 
   const DATA_ROWS = 2001;
   for (let row = 2; row <= DATA_ROWS; row++) {
-    // Parent category dropdown
+    // Parent category dropdown (col F = 6)
     ws.getCell(row, 6).dataValidation = {
       type: "list",
       allowBlank: true,
@@ -130,9 +159,7 @@ export async function generateProductImportTemplate(
       error: "Choose a category from the dropdown",
     };
 
-    // Dependent sub-category dropdown — uses OFFSET/MATCH so it works for
-    // any category name (spaces, &, /, etc.). When the category cell is
-    // blank or unrecognised the dropdown simply shows nothing.
+    // Dependent sub-category dropdown (col G = 7)
     const subFormula =
       `OFFSET(DropdownData!$A$2,0,MATCH(F${row},${headerRange},0),${subGridRows},1)`;
     ws.getCell(row, 7).dataValidation = {
@@ -144,9 +171,24 @@ export async function generateProductImportTemplate(
       prompt: "Sub-categories filter automatically based on the category you picked",
       showErrorMessage: false,
     };
+
+    // Dependent sub-sub-category dropdown (col H = 8)
+    if (allSubcats.length > 0) {
+      const subSubFormula =
+        `OFFSET(SubSubData!$A$2,0,MATCH(G${row},${subHeaderRange},0),${subSubGridRows},1)`;
+      ws.getCell(row, 8).dataValidation = {
+        type: "list",
+        allowBlank: true,
+        formulae: [subSubFormula],
+        showInputMessage: true,
+        promptTitle: "Sub-sub-category",
+        prompt: "Filters based on the sub-category you picked",
+        showErrorMessage: false,
+      };
+    }
   }
 
-  // ── 3. Download ──────────────────────────────────────────────────────────
+  // ── 4. Download ───────────────────────────────────────────────────────────
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -163,7 +205,8 @@ export async function generateProductImportTemplate(
 
 /**
  * Parses an uploaded Excel/CSV file using ExcelJS.
- * Prefers the "Products" sheet; skips the "DropdownData" helper sheet.
+ * Prefers the "Products" sheet; skips the "DropdownData" and "SubSubData" helper sheets.
+ * Forces SKU column to string to prevent numeric corruption.
  */
 export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
   return new Promise((resolve, reject) => {
@@ -184,11 +227,12 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
           return;
         }
 
-        // Prefer sheet named "Products"; fallback to first sheet that isn't DropdownData
+        // Prefer sheet named "Products"; fallback to first sheet that isn't helper sheets
+        const helperSheets = new Set(["dropdowndata", "subsubdata"]);
         const sheet =
           workbook.getWorksheet("Products") ??
           workbook.worksheets.find(
-            (ws) => ws.name.toLowerCase() !== "dropdowndata"
+            (ws) => !helperSheets.has(ws.name.toLowerCase())
           ) ??
           workbook.worksheets[0];
 
@@ -203,7 +247,7 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
         headerRow.eachCell((cell, colNumber) => {
           const val = cell.value;
           if (val != null && String(val).trim() !== "") {
-            headers[colNumber] = String(val).trim();
+            headers[colNumber] = String(val).trim().toLowerCase();
           }
         });
 
@@ -212,6 +256,13 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
           return;
         }
 
+        // Determine which column numbers correspond to SKU (to force string)
+        const skuColNums = new Set(
+          Object.entries(headers)
+            .filter(([, h]) => h === "sku")
+            .map(([n]) => Number(n))
+        );
+
         const rows: Record<string, string>[] = [];
         sheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return; // skip header row
@@ -219,8 +270,17 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
           row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
             const header = headers[colNumber];
             if (header) {
-              // Normalize cell value: handle Date objects, rich text, formulas, hyperlinks
               let val = cell.value;
+
+              // Force SKU columns to string — prevents Excel treating "001" as 1
+              if (skuColNums.has(colNumber)) {
+                // Use raw text value if available (preserves leading zeros)
+                const rawText = cell.text || String(val ?? "");
+                obj[header] = rawText.trim();
+                return;
+              }
+
+              // Normalize cell value: handle Date objects, rich text, formulas, hyperlinks
               if (val && typeof val === "object" && "richText" in (val as object)) {
                 val = (val as { richText: { text: string }[] }).richText
                   .map((r) => r.text)
@@ -230,13 +290,16 @@ export function parseExcelFile(file: File): Promise<Record<string, string>[]> {
               } else if (val && typeof val === "object" && "result" in (val as object)) {
                 val = String((val as { result: unknown }).result ?? "");
               } else if (val && typeof val === "object" && "hyperlink" in (val as object)) {
-                // ExcelJS hyperlink cells: { text, hyperlink, target }
                 const hv = val as { hyperlink?: string; text?: string; target?: string };
                 val = hv.hyperlink || hv.target || hv.text || "";
               } else if (val && typeof val === "object" && "text" in (val as object)) {
                 val = String((val as { text: unknown }).text ?? "");
               }
-              obj[header] = String(val ?? "").trim();
+
+              // Strip zero-width / non-breaking spaces from all string values
+              obj[header] = String(val ?? "")
+                .replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, " ")
+                .trim();
             }
           });
           if (Object.keys(obj).length > 0) rows.push(obj);

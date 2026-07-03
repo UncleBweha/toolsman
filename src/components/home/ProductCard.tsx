@@ -5,11 +5,12 @@ import { useCartContext } from "@/contexts/CartContext";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { getProductAlt } from "@/lib/imageUtils";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import OptimizedImage from "@/components/OptimizedImage";
 
 interface ProductCardProps {
   id?: number;
@@ -62,7 +63,6 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
 
   const discountPercent = calculateDiscount();
   const productLink = slug ? `/product/${slug}` : `/product/${id}`;
-  const proxiedImage = getProxiedImageUrl(image);
   const wished = productId ? isInWishlist(productId) : false;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
@@ -118,18 +118,12 @@ const ProductCard = ({ id, productId, name, price, originalPrice, image, discoun
             the bitmap, causing blur on both mobile and desktop.
             Hover effect is on the card shadow instead.
           */}
-          <img
-            src={proxiedImage}
-            alt={name}
+          <OptimizedImage
+            src={image}
+            alt={getProductAlt(name)}
             width={400}
             height={400}
-            loading="lazy"
             className="w-full h-full object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.onerror = null;
-              target.src = "/placeholder.svg";
-            }}
           />
         </div>
       </Link>

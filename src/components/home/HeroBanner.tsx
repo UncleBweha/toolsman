@@ -3,7 +3,8 @@ import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { getProductAlt, getProxiedImageUrl } from "@/lib/imageUtils";
+import OptimizedImage from "@/components/OptimizedImage";
 import { motion, AnimatePresence } from "framer-motion";
 
 const HeroBanner = () => {
@@ -163,17 +164,13 @@ const HeroBanner = () => {
                   transition={{ duration: 0.35, ease: "easeInOut" }}
                   whileHover={{ scale: 1.02 }}
                 >
-                  <img
-                    src={getProxiedImageUrl(slide.image_url)}
-                    alt={slide.name}
-                    loading="eager"
-                    decoding="async"
+                  <OptimizedImage
+                    src={slide.image_url}
+                    alt={getProductAlt(slide.name)}
+                    width={400}
+                    height={400}
+                    priority={true} // Priority loading for above-the-fold hero image
                     className="max-w-full max-h-full object-contain"
-                    onError={(e) => {
-                      const t = e.target as HTMLImageElement;
-                      t.onerror = null;
-                      t.src = "/placeholder.svg";
-                    }}
                   />
                 </motion.div>
               </AnimatePresence>

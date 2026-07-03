@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Category } from "@/types/database";
-import { watermarkUrl, uploadWatermarkedBlob, isAlreadyWatermarked, watermarkProduct } from "@/lib/watermark";
+import { watermarkProduct } from "@/lib/watermark";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -12,17 +12,85 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, XCircle, AlertCircle, AlertTriangle } from "lucide-react";
 import Papa from "papaparse";
 import { parseKeyFeatures } from "@/lib/featureParser";
 import { generateProductImportTemplate, parseExcelFile, CategoryWithSubcategories } from "@/lib/excelTemplateGenerator";
 
-import { 
-  fetchCategoriesWithSubcategories, 
-  getCategoryIdByName, 
+import {
+  fetchCategoriesWithSubcategories,
+  getCategoryIdByName,
   getSubcategoryIdByName,
-  validateImportedCategories 
+  validateImportedCategories,
 } from "@/lib/categoryService";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Description / feature detection helpers
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Detect whether a string looks like a feature list rather than a prose paragraph.
+ * Heuristics:
+ *  - Contains bullet characters (•, ●, ◦, ‣, -)
+ *  - Contains newlines with short items (each < 120 chars)
+ *  - Contains numbered list prefixes (1., 2., …)
+ */
+function looksLikeFeatureList(text: string): boolean {
+  if (!text) return false;
+  // Bullet characters
+  if (/[•●◦‣]/.test(text)) return true;
+  // Markdown-style list
+  if (/^[-*]\s/m.test(text)) return true;
+  // Numbered list (at least 2 items)
+  const numberedMatches = text.match(/^\s*\d+[.)]\s/gm);
+  if (numberedMatches && numberedMatches.length >= 2) return true;
+  // Newline-separated items where most lines are short (< 120 chars) and non-empty
+  if (/\n/.test(text)) {
+    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length >= 2 && lines.every(l => l.length < 120)) return true;
+  }
+  return false;
+}
+
+/**
+ * Split a raw description cell into:
+ *  - `paragraph`: the prose paragraph portion (or empty string)
+ *  - `features`: items to go into key_features
+ *
+ * Strategy:
+ *  1. If description is entirely a feature list → all goes to features, paragraph = ""
+ *  2. If description is a prose paragraph → paragraph = text, features = []
+ *  3. Mixed: first paragraph-like block → paragraph; subsequent lines that look like
+ *     features → features
+ */
+function splitDescriptionAndFeatures(raw: string): { paragraph: string; features: string[] } {
+  if (!raw || !raw.trim()) return { paragraph: "", features: [] };
+
+  const text = raw.trim();
+
+  // Entirely a feature list
+  if (looksLikeFeatureList(text)) {
+    return { paragraph: "", features: parseKeyFeatures(text) };
+  }
+
+  // Try to split: first big block as prose, remainder as features
+  // Split on double-newline (paragraph boundary)
+  const blocks = text.split(/\n{2,}/);
+  if (blocks.length >= 2) {
+    const firstBlock = blocks[0].trim();
+    const rest = blocks.slice(1).join("\n\n").trim();
+    if (looksLikeFeatureList(rest)) {
+      return { paragraph: firstBlock, features: parseKeyFeatures(rest) };
+    }
+  }
+
+  // No detectable feature list — treat whole thing as paragraph
+  return { paragraph: text, features: [] };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Interfaces
+// ──────────────────────────────────────────────────────────────────────────────
 
 interface ImportProduct {
   name: string;
@@ -34,6 +102,7 @@ interface ImportProduct {
   stock_quantity?: number;
   category?: string;
   sub_category?: string;
+  sub_sub_category?: string;
   category_id?: string | null;
   sub_category_id?: string | null;
   image_url?: string;
@@ -44,10 +113,15 @@ interface ImportProduct {
   product_status?: string;
   is_featured?: boolean;
   is_active?: boolean;
-  status?: "pending" | "success" | "error" | "duplicate";
+  status?: "pending" | "success" | "error" | "duplicate" | "warning";
   error?: string;
+  warnings?: string[];
   rowIndex?: number;
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Component
+// ──────────────────────────────────────────────────────────────────────────────
 
 const BulkProductImport = () => {
   const [products, setProducts] = useState<ImportProduct[]>([]);
@@ -75,24 +149,36 @@ const BulkProductImport = () => {
       .replace(/(^-|-$)/g, "");
   };
 
+  /**
+   * Read a row value with multiple possible column name variants.
+   * Always returns a trimmed string.
+   */
+  const getField = (row: Record<string, string>, ...keys: string[]): string => {
+    for (const key of keys) {
+      const val = row[key] ?? row[key.toLowerCase()] ?? row[key.toUpperCase()];
+      if (val !== undefined && val !== null) {
+        return String(val).replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, " ").trim();
+      }
+    }
+    return "";
+  };
+
   const parseFile = async (file: File) => {
     console.log("Starting file parse:", file.name, file.type, file.size);
     setIsParsing(true);
     toast.info(`Processing ${file.name}...`);
-    
+
     try {
       const cats = await fetchCategories();
       console.log("Fetched categories:", cats.length);
-      
+
       const extension = file.name.split(".").pop()?.toLowerCase();
-      console.log("File extension:", extension);
 
       if (extension === "csv") {
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
           complete: async (results) => {
-            console.log("CSV parse complete:", results.data.length, "rows");
             if (results.data.length === 0) {
               toast.error("The file appears to be empty");
               setIsParsing(false);
@@ -102,7 +188,6 @@ const BulkProductImport = () => {
             setIsParsing(false);
           },
           error: (error) => {
-            console.error("CSV parse error:", error);
             toast.error("Failed to parse CSV file: " + error.message);
             setIsParsing(false);
           },
@@ -111,9 +196,7 @@ const BulkProductImport = () => {
         try {
           const jsonData = await parseExcelFile(file);
           console.log("Excel parse complete:", jsonData.length, "rows");
-          
           if (jsonData.length > 0) {
-            console.log("First row sample:", JSON.stringify(jsonData[0]));
             console.log("Column headers:", Object.keys(jsonData[0]));
           }
           await processData(jsonData, cats);
@@ -135,86 +218,103 @@ const BulkProductImport = () => {
   };
 
   const processData = async (data: Record<string, string>[], cats: Category[]) => {
-    const categoryMap = new Map(cats.map((c) => [c.name.toLowerCase(), c.id]));
-
-    // Prepare rows for validation
+    // Prepare rows for category validation
     const rowsToValidate = data.map((row, idx) => ({
-      category: row.category || row.Category || row.CATEGORY || "",
-      sub_category: row.sub_category || row.SubCategory || row.sub_Category || row["Sub Category"] || "",
-      rowIndex: idx + 2, // +2 because Excel row numbering starts at 1 and headers are row 1
+      category: getField(row, "category", "Category", "CATEGORY"),
+      sub_category: getField(row, "sub_category", "SubCategory", "sub_Category", "Sub Category"),
+      rowIndex: idx + 2,
     }));
 
-    // Validate categories and subcategories
+    // Validate categories — now returns warnings, not blocking errors
     const validationResults = await validateImportedCategories(rowsToValidate);
-
-    // Create validation map for quick lookup
     const validationMap = new Map(validationResults.map(r => [r.rowIndex, r]));
 
     const processed: ImportProduct[] = data.map((row, idx) => {
-      const name = row.name || row.Name || row.NAME || "";
-      const categoryName = row.category || row.Category || row.CATEGORY || "";
-      const subCategoryName = row.sub_category || row.SubCategory || row.sub_Category || row["Sub Category"] || "";
+      const name = getField(row, "name", "Name", "NAME");
+      const categoryName = getField(row, "category", "Category", "CATEGORY");
+      const subCategoryName = getField(row, "sub_category", "SubCategory", "sub_Category", "Sub Category");
+      const subSubCategoryName = getField(row, "sub_sub_category", "SubSubCategory", "Sub Sub Category", "sub_sub_category");
       const rowIndex = idx + 2;
 
-      // Get validation result
+      // Category resolution (warnings only — never blocks)
       const validation = validationMap.get(rowIndex);
-      let categoryId: string | null = null;
-      let subCategoryId: string | null = null;
-      let validationError = "";
+      const categoryId = validation?.categoryId || null;
+      const subCategoryId = validation?.subcategoryId || null;
+      const rowWarnings = validation?.warnings || [];
 
-      if (validation && !validation.valid) {
-        validationError = validation.errors.join("; ");
-      } else if (validation) {
-        categoryId = validation.categoryId || null;
-        subCategoryId = validation.subcategoryId || null;
+      // ── SKU: always force to string ──────────────────────────────────────
+      const rawSku = getField(row, "sku", "SKU", "Sku");
+      // If it's a pure number, it may have lost leading zeros — keep as-is
+      const sku = rawSku;
+
+      // ── Description + feature extraction ─────────────────────────────────
+      const rawDescription = getField(row, "description", "Description", "DESCRIPTION");
+      const rawKeyFeatures = getField(row, "key_features", "KeyFeatures", "key_features", "features", "Features");
+
+      const { paragraph, features: descFeatures } = splitDescriptionAndFeatures(rawDescription);
+
+      // Merge features from description detection + key_features column (deduplicated)
+      const colFeatures = parseKeyFeatures(rawKeyFeatures);
+      const mergedFeatures = [...colFeatures];
+      const seen = new Set(colFeatures.map(f => f.toLowerCase().replace(/\s+/g, " ")));
+      for (const f of descFeatures) {
+        const key = f.toLowerCase().replace(/\s+/g, " ");
+        if (!seen.has(key)) {
+          mergedFeatures.push(f);
+          seen.add(key);
+        }
       }
 
-      // Fallback to old category lookup for backward compatibility
-      if (!categoryId && categoryName) {
-        categoryId = categoryMap.get(categoryName.toLowerCase()) || null;
-      }
+      // Final description: use parsed paragraph (may be empty if all was features)
+      const finalDescription = paragraph || null;
+      const finalKeyFeatures = mergedFeatures.join("\n");
 
       return {
         name,
-        slug: row.slug || row.Slug || generateSlug(name),
-        description: row.description || row.Description || "",
-        price: parseInt(row.price || row.Price || "0") || 0,
-        original_price: row.original_price || row.OriginalPrice ? parseInt(row.original_price || row.OriginalPrice) : null,
-        sku: row.sku || row.SKU || "",
-        stock_quantity: parseInt(row.stock_quantity || row.Stock || row.stock || "0") || 0,
+        slug: getField(row, "slug", "Slug") || generateSlug(name),
+        description: finalDescription ?? undefined,
+        price: parseInt(getField(row, "price", "Price", "PRICE")) || 0,
+        original_price: getField(row, "original_price", "OriginalPrice")
+          ? parseInt(getField(row, "original_price", "OriginalPrice")) || null
+          : null,
+        sku: sku || undefined,
+        stock_quantity: parseInt(getField(row, "stock_quantity", "Stock", "stock")) || 0,
         category: categoryName,
         sub_category: subCategoryName,
+        sub_sub_category: subSubCategoryName,
         category_id: categoryId,
         sub_category_id: subCategoryId,
-        image_url: row.image_url || row.ImageUrl || row.image || "",
-        // Collect extra image columns (image_url_2 … image_url_5) into the images array
+        image_url: getField(row, "image_url", "ImageUrl", "image"),
         images: [
-          row.image_url_2 || row.ImageUrl2 || "",
-          row.image_url_3 || row.ImageUrl3 || "",
-          row.image_url_4 || row.ImageUrl4 || "",
-          row.image_url_5 || row.ImageUrl5 || "",
+          getField(row, "image_url_2", "ImageUrl2"),
+          getField(row, "image_url_3", "ImageUrl3"),
+          getField(row, "image_url_4", "ImageUrl4"),
+          getField(row, "image_url_5", "ImageUrl5"),
         ].filter(Boolean),
-        brand: row.brand || row.Brand || "",
-        tags: row.tags || row.Tags || "",
-        key_features: row.key_features || row.KeyFeatures || row.features || "",
-        product_status: row.status || row.Status || "active",
-        is_featured: (row.is_featured || row.Featured || "").toLowerCase() === "true",
-        is_active: (row.is_active || row.Active || "true").toLowerCase() !== "false",
-        status: validationError ? "error" : ("pending" as const),
-        error: validationError || undefined,
-        rowIndex: rowIndex,
+        brand: getField(row, "brand", "Brand"),
+        tags: getField(row, "tags", "Tags"),
+        key_features: finalKeyFeatures,
+        product_status: getField(row, "status", "Status") || "active",
+        is_featured: getField(row, "is_featured", "Featured").toLowerCase() === "true",
+        is_active: getField(row, "is_active", "Active").toLowerCase() !== "false",
+        status: rowWarnings.length > 0 ? ("warning" as const) : ("pending" as const),
+        warnings: rowWarnings.length > 0 ? rowWarnings : undefined,
+        rowIndex,
       };
     });
 
     setProducts(processed);
-    toast.success(`Loaded ${processed.length} products for import`);
+    const warningCount = processed.filter(p => p.status === "warning").length;
+    if (warningCount > 0) {
+      toast.warning(`Loaded ${processed.length} products — ${warningCount} have category warnings (will still import)`);
+    } else {
+      toast.success(`Loaded ${processed.length} products for import`);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      parseFile(file);
-    }
+    if (file) parseFile(file);
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -226,7 +326,6 @@ const BulkProductImport = () => {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set dragging to false if we're leaving the drop zone entirely
     if (dropZoneRef.current && !dropZoneRef.current.contains(e.relatedTarget as Node)) {
       setIsDragging(false);
     }
@@ -241,12 +340,10 @@ const BulkProductImport = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       const file = files[0];
       const extension = file.name.split(".").pop()?.toLowerCase();
-      
       if (extension === "csv" || extension === "xlsx" || extension === "xls") {
         parseFile(file);
       } else {
@@ -265,7 +362,7 @@ const BulkProductImport = () => {
     const importedIds: string[] = [];
     const errors: Array<{ row: number; message: string }> = [];
 
-    // Fetch existing SKUs for duplicate detection
+    // Fetch existing SKUs/names for duplicate detection
     const { data: existingProducts } = await supabase
       .from("products")
       .select("sku, name")
@@ -276,18 +373,10 @@ const BulkProductImport = () => {
     for (let i = 0; i < products.length; i++) {
       const product = products[i];
 
+      // Hard validation: name + price required
       if (!product.name || product.price <= 0) {
         updatedProducts[i] = { ...product, status: "error", error: "Name and valid price are required" };
         errors.push({ row: product.rowIndex || i + 1, message: "Name and valid price are required" });
-        setProducts([...updatedProducts]);
-        setImportProgress(((i + 1) / products.length) * 100);
-        continue;
-      }
-
-      // Check for validation errors from parsing
-      if (product.error) {
-        updatedProducts[i] = { ...product, status: "error" };
-        errors.push({ row: product.rowIndex || i + 1, message: product.error });
         setProducts([...updatedProducts]);
         setImportProgress(((i + 1) / products.length) * 100);
         continue;
@@ -309,44 +398,23 @@ const BulkProductImport = () => {
         continue;
       }
 
-      // Resolve category if using name-based lookup
+      // Resolve category if not already set
       let categoryId = product.category_id;
       if (!categoryId && product.category) {
         categoryId = await getCategoryIdByName(product.category);
-        if (!categoryId) {
-          updatedProducts[i] = { 
-            ...product, 
-            status: "error", 
-            error: `Category "${product.category}" not found` 
-          };
-          errors.push({ 
-            row: product.rowIndex || i + 1, 
-            message: `Category "${product.category}" not found` 
-          });
-          setProducts([...updatedProducts]);
-          setImportProgress(((i + 1) / products.length) * 100);
-          continue;
-        }
+        // Not finding a category is fine — just import without it
       }
 
-      // Resolve subcategory if using name-based lookup
+      // Resolve subcategory
       let subcategoryId = product.sub_category_id;
       if (!subcategoryId && product.sub_category && categoryId) {
         subcategoryId = await getSubcategoryIdByName(product.sub_category, categoryId);
-        if (!subcategoryId) {
-          updatedProducts[i] = { 
-            ...product, 
-            status: "error", 
-            error: `Subcategory "${product.sub_category}" not found for this category` 
-          };
-          errors.push({ 
-            row: product.rowIndex || i + 1, 
-            message: `Subcategory "${product.sub_category}" not found for this category` 
-          });
-          setProducts([...updatedProducts]);
-          setImportProgress(((i + 1) / products.length) * 100);
-          continue;
-        }
+      }
+
+      // Resolve sub-sub-category (use it as the most specific category_id if found)
+      if (product.sub_sub_category && subcategoryId) {
+        const subSubId = await getSubcategoryIdByName(product.sub_sub_category, subcategoryId);
+        if (subSubId) subcategoryId = subSubId;
       }
 
       const rawImageUrl = product.image_url || null;
@@ -379,7 +447,6 @@ const BulkProductImport = () => {
         const res = await supabase.from("products").insert(buildPayload(slug)).select("id").single();
         if (!res.error) { inserted = res.data as any; error = null; break; }
         error = res.error;
-        // Retry only on unique slug conflict
         if (res.error.code === "23505" && /slug/i.test(res.error.message)) {
           slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
           continue;
@@ -391,14 +458,11 @@ const BulkProductImport = () => {
         updatedProducts[i] = { ...product, status: "error", error: error.message };
         errors.push({ row: product.rowIndex || i + 1, message: error.message });
       } else {
-
         updatedProducts[i] = { ...product, status: "success" };
         if (inserted?.id) {
           importedIds.push(inserted.id);
-          // Trigger background watermarking so it doesn't block the import speed
           watermarkProduct(inserted.id, rawImageUrl, rawImages);
         }
-        // Add to tracking sets to catch duplicates within the same batch
         if (product.sku) existingSkus.add(product.sku.toLowerCase());
         existingNames.add(product.name.toLowerCase());
       }
@@ -413,7 +477,7 @@ const BulkProductImport = () => {
     const errorCount = updatedProducts.filter((p) => p.status === "error").length;
     const duplicateCount = updatedProducts.filter((p) => p.status === "duplicate").length;
 
-    // Log import history (table optional)
+    // Log import history
     try {
       await (supabase.from as any)("import_history").insert({
         filename: "bulk_import",
@@ -440,7 +504,7 @@ const BulkProductImport = () => {
     try {
       toast.loading("Generating template...");
       const categoriesWithSubs = await fetchCategoriesWithSubcategories();
-      
+
       if (categoriesWithSubs.length === 0) {
         toast.error("No categories available. Please create categories first.");
         return;
@@ -455,14 +519,22 @@ const BulkProductImport = () => {
   };
 
   const formatPrice = (price: number) => {
-    return `Kshs ${Number(price).toLocaleString('en-US', { minimumFractionDigits: 0 })}`;
+    return `Kshs ${Number(price).toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
+  };
+
+  const StatusIcon = ({ product }: { product: ImportProduct }) => {
+    if (product.status === "success") return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+    if (product.status === "error") return <XCircle className="h-5 w-5 text-red-600" />;
+    if (product.status === "duplicate") return <AlertCircle className="h-5 w-5 text-orange-500" />;
+    if (product.status === "warning") return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+    return <AlertCircle className="h-5 w-5 text-muted-foreground" />;
   };
 
   return (
     <div className="space-y-6">
       <div className="bg-background rounded-lg border p-6">
         <h2 className="text-xl font-semibold mb-4">Bulk Product Import</h2>
-        
+
         <div
           ref={dropZoneRef}
           onDragEnter={handleDragEnter}
@@ -532,6 +604,11 @@ const BulkProductImport = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-muted-foreground">
                 {products.length} products ready for import
+                {products.filter(p => p.status === "warning").length > 0 && (
+                  <span className="ml-2 text-yellow-600">
+                    · {products.filter(p => p.status === "warning").length} with category warnings (will still import)
+                  </span>
+                )}
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setProducts([])}>
@@ -572,33 +649,40 @@ const BulkProductImport = () => {
                     <TableHead>SKU</TableHead>
                     <TableHead>Price</TableHead>
                     <TableHead>Category</TableHead>
-                    <TableHead>Error</TableHead>
+                    <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {products.slice(0, 50).map((product, index) => (
-                    <TableRow key={index}>
+                    <TableRow
+                      key={index}
+                      className={
+                        product.status === "warning" ? "bg-yellow-50/50" : ""
+                      }
+                    >
                       <TableCell className="text-xs text-muted-foreground">{product.rowIndex ?? index + 2}</TableCell>
                       <TableCell>
-                        {product.status === "success" && (
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        )}
-                        {product.status === "error" && (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                        {product.status === "duplicate" && (
-                          <AlertCircle className="h-5 w-5 text-orange-500" />
-                        )}
-                        {product.status === "pending" && (
-                          <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                        )}
+                        <StatusIcon product={product} />
                       </TableCell>
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.sku || "-"}</TableCell>
                       <TableCell>{formatPrice(product.price)}</TableCell>
-                      <TableCell className="text-xs">{product.sub_category || product.category || "-"}</TableCell>
-                      <TableCell className={product.status === "duplicate" ? "text-orange-600 text-sm" : "text-red-600 text-sm"}>
-                        {product.error}
+                      <TableCell className="text-xs">
+                        {[product.category, product.sub_category, product.sub_sub_category]
+                          .filter(Boolean).join(" › ") || "-"}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[220px]">
+                        {product.status === "error" && (
+                          <span className="text-red-600">{product.error}</span>
+                        )}
+                        {product.status === "duplicate" && (
+                          <span className="text-orange-600">{product.error}</span>
+                        )}
+                        {product.status === "warning" && product.warnings && (
+                          <span className="text-yellow-700 text-xs leading-tight">
+                            {product.warnings.join("; ")}
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -618,13 +702,13 @@ const BulkProductImport = () => {
         <h3 className="font-semibold mb-3">Import Guidelines</h3>
         <ul className="text-sm text-muted-foreground space-y-2">
           <li>• <strong>Required fields:</strong> name, price (in Kshs)</li>
-          <li>• <strong>Optional fields:</strong> description, original_price, sku, category, sub_category, brand, tags, key_features, image_url, image_url_2…image_url_5</li>
+          <li>• <strong>Optional fields:</strong> description, original_price, sku, category, sub_category, sub_sub_category, brand, tags, key_features, image_url, image_url_2…image_url_5</li>
           <li>• <strong>Price format:</strong> Enter prices in Kshs (e.g., 9999 for Kshs 9,999)</li>
-          <li>• <strong>Category & Sub Category:</strong> Use dropdowns in the template - they automatically populate from your website</li>
-          <li>• <strong>Sub Category:</strong> Will automatically filter based on selected category</li>
+          <li>• <strong>Category matching:</strong> Case-insensitive, space-tolerant, fuzzy — products import even if category is not found (shown as yellow warning)</li>
+          <li>• <strong>SKU:</strong> Always treated as text — leading zeros are preserved</li>
+          <li>• <strong>Description + Features:</strong> If description contains bullet points or a numbered list, features are automatically extracted from it and merged with the key_features column</li>
           <li>• <strong>Tags:</strong> Comma-separated (e.g., "drill, cordless, power tool")</li>
-          <li>• <strong>Key features:</strong> Comma-separated (e.g., "20V Battery, Variable Speed")</li>
-          <li>• <strong>Backward compatibility:</strong> Old imports without sub_category column will still work</li>
+          <li>• <strong>Key features:</strong> Supports bullet lists, numbered lists, or comma-separated</li>
         </ul>
       </div>
     </div>

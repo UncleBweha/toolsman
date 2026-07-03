@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Product } from "@/types/database";
 import { Link } from "react-router-dom";
 import { ShoppingCart, Loader2 } from "lucide-react";
-import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { getProductAlt } from "@/lib/imageUtils";
 import { useCartContext } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import OptimizedImage from "@/components/OptimizedImage";
 
 interface RelatedProductsProps {
   currentProductId: string;
@@ -67,16 +68,12 @@ const RelatedProductCard = ({ product }: { product: Product }) => {
             -{discount}%
           </span>
         )}
-        <img
-          src={getProxiedImageUrl(product.image_url || "/placeholder.svg")}
-          alt={product.name}
-          loading="lazy"
+        <OptimizedImage
+          src={product.image_url}
+          alt={getProductAlt(product.name, product.brand)}
+          width={300}
+          height={300}
           className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
-          onError={(e) => {
-            const t = e.target as HTMLImageElement;
-            t.onerror = null;
-            t.src = "/placeholder.svg";
-          }}
         />
       </div>
 

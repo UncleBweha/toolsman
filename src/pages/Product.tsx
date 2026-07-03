@@ -24,9 +24,10 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Product as ProductType } from "@/types/database";
-import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { getProxiedImageUrl, getProductAlt } from "@/lib/imageUtils";
 import { parseKeyFeatures } from "@/lib/featureParser";
 import DOMPurify from "dompurify";
+import OptimizedImage from "@/components/OptimizedImage";
 
 
 
@@ -254,11 +255,12 @@ const Product = () => {
                 onContextMenu={(e) => e.preventDefault()}
                 style={{ touchAction: "pan-y pinch-zoom" }}
               >
-                <img
-                  src={images[selectedImage] || "/placeholder.svg"}
-                  alt={product.name}
-                  draggable={false}
-                  onContextMenu={(e) => e.preventDefault()}
+                <OptimizedImage
+                  src={uniqueImages[selectedImage]}
+                  alt={getProductAlt(product.name, product.brand)}
+                  width={600}
+                  height={600}
+                  priority={true} // Priority loading for the main above-the-fold product image
                   className="max-w-full max-h-full object-contain transition-transform duration-200"
                   style={{
                     WebkitTouchCallout: "none",
@@ -266,11 +268,6 @@ const Product = () => {
                     ...(hoverZoom.active
                       ? { transform: "scale(2)", transformOrigin: `${hoverZoom.x}% ${hoverZoom.y}%` }
                       : {}),
-                  }}
-                  onError={(e) => {
-                    const t = e.target as HTMLImageElement;
-                    t.onerror = null;
-                    t.src = "/placeholder.svg";
                   }}
                 />
                 {/* Protection overlay — pointer-events-none so buttons below still work */}
@@ -321,18 +318,12 @@ const Product = () => {
                   onContextMenu={(e) => e.preventDefault()}
                   style={{ touchAction: "pinch-zoom", WebkitTouchCallout: "none", userSelect: "none" }}
                 >
-                  <img
-                    src={images[selectedImage]}
-                    alt={product.name}
+                  <OptimizedImage
+                    src={uniqueImages[selectedImage]}
+                    alt={getProductAlt(product.name, product.brand, "zoomed view")}
+                    width={1000}
+                    height={1000}
                     className="w-full h-full object-contain"
-                    draggable={false}
-                    onContextMenu={(e) => e.preventDefault()}
-                    style={{ WebkitTouchCallout: "none", userSelect: "none" }}
-                    onError={(e) => {
-                      const t = e.target as HTMLImageElement;
-                      t.onerror = null;
-                      t.src = "/placeholder.svg";
-                    }}
                   />
                   {/* Pointer-events-none overlay — blocks mobile long-press save */}
                   <div
@@ -368,20 +359,23 @@ const Product = () => {
             </div>
 
             {cleanDescription && (
-              <div className="relative">
-                <div
-                  className={`prose prose-sm max-w-none text-sm text-gray-600 leading-relaxed overflow-hidden transition-all duration-300 ${
-                    descExpanded ? "" : "line-clamp-3"
-                  }`}
-                  dangerouslySetInnerHTML={{ __html: cleanDescription }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setDescExpanded(!descExpanded)}
-                  className="text-[#FF5722] hover:text-[#e64a19] text-sm font-semibold mt-1 transition-colors"
-                >
-                  {descExpanded ? "Show less" : "See more"}
-                </button>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Description</h3>
+                <div className="relative">
+                  <div
+                    className={`prose prose-sm max-w-none text-sm text-gray-600 leading-relaxed overflow-hidden transition-all duration-300 ${
+                      descExpanded ? "" : "line-clamp-3"
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: cleanDescription }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded(!descExpanded)}
+                    className="text-[#FF5722] hover:text-[#e64a19] text-sm font-semibold mt-1 transition-colors"
+                  >
+                    {descExpanded ? "Show less" : "See more"}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -482,7 +476,7 @@ const Product = () => {
                     </span>
                     Key Features
                   </h3>
-                  <ul className="space-y-3">
+                  <ul className="space-y-3 list-none">
                     {features.map((feature, i) => (
                       <li
                         key={i}
@@ -500,7 +494,7 @@ const Product = () => {
               <Card className="bg-gray-50/50 border-gray-200 shadow-sm rounded-xl overflow-hidden lg:sticky lg:top-24">
                 <CardContent className="p-5">
                   <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wider mb-3">Why Buy From Us</h3>
-                  <ul className="space-y-3">
+                  <ul className="space-y-3 list-none">
                     {[
                       "Genuine products, verified quality",
                       "Fast nationwide delivery across Kenya",

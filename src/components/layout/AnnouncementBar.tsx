@@ -10,32 +10,11 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const TickerItem = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-flex items-center gap-5 px-5">
-    {children}
-  </span>
-);
 
 const AnnouncementBar = () => {
   const { pathname } = useLocation();
   if (pathname.startsWith("/admin") || pathname.startsWith("/auth")) return null;
 
-  const trustContent = (
-    <>
-      <TickerItem>
-        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Fast Delivery</span>
-        <span className="text-white/40">•</span>
-        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Genuine Products</span>
-        <span className="text-white/40">•</span>
-        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Competitive Prices</span>
-        <span className="text-white/40">•</span>
-        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Nationwide Shipping</span>
-        <span className="text-white/40">•</span>
-        <span className="text-white text-[10px] font-bold uppercase tracking-wider">Secure Payment</span>
-        <span className="text-white/40">•</span>
-      </TickerItem>
-    </>
-  );
 
   return (
     <>
@@ -119,25 +98,7 @@ const AnnouncementBar = () => {
         </div>
       </div>
 
-      {/* ── Desktop Ticker: Trust Badges ── */}
-      <div className="hidden md:block bg-[#FF5722] h-5 overflow-hidden relative">
-        <div className="flex items-center h-full animate-[announcement-ticker_22s_linear_infinite] whitespace-nowrap will-change-transform">
-          {trustContent}
-          {trustContent}
-        </div>
-      </div>
 
-      <style>{`
-        @keyframes announcement-ticker {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .animate-\\[announcement-ticker_22s_linear_infinite\\] {
-            animation: none;
-          }
-        }
-      `}</style>
     </>
   );
 };

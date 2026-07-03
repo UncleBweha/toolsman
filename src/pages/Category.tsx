@@ -14,6 +14,8 @@ import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
   PaginationNext, PaginationPrevious, PaginationEllipsis,
 } from "@/components/ui/pagination";
+import OptimizedImage from "@/components/OptimizedImage";
+import { getProductAlt } from "@/lib/imageUtils";
 
 const PRODUCTS_PER_PAGE = 12;
 const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US")}`;
@@ -226,7 +228,13 @@ const Category = () => {
                 {products.map((p) => (
                   <Link key={p.id} to={`/product/${p.slug}`} className="flex gap-4 p-4 border rounded-lg hover:shadow-md transition-shadow">
                     <div className="w-24 h-24 md:w-32 md:h-32 bg-muted rounded-lg overflow-hidden flex-shrink-0">
-                      <img src={p.image_url || "/placeholder.svg"} alt={p.name} className="w-full h-full object-contain" />
+                      <OptimizedImage
+                        src={p.image_url}
+                        alt={getProductAlt(p.name)}
+                        width={200}
+                        height={200}
+                        className="w-full h-full object-contain"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold mb-2 line-clamp-2">{p.name}</h3>

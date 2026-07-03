@@ -3,6 +3,8 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getProductAlt } from "@/lib/imageUtils";
+import OptimizedImage from "@/components/OptimizedImage";
 
 import categoryPowerTools from "@/assets/category-power-tools.jpg";
 import categoryHandTools from "@/assets/category-hand-tools.jpg";
@@ -121,9 +123,11 @@ const CategoryGrid = () => {
             >
               <div className="flex flex-col items-center gap-2">
                 <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl bg-white shadow-sm border border-gray-200 flex items-center justify-center overflow-hidden group-hover:border-[#FF5722] transition-all duration-300">
-                  <img
+                  <OptimizedImage
                     src={getCategoryImage(category)}
-                    alt={category.name}
+                    alt={getProductAlt(category.name, null, "department")}
+                    width={100}
+                    height={100}
                     className="w-10 h-10 md:w-16 md:h-16 object-contain"
                   />
                 </div>

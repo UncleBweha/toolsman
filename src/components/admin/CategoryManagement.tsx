@@ -146,18 +146,14 @@ const CategoryManagement = () => {
     setIsDialogOpen(true);
   };
 
-  // Get parent categories (categories without parent_id)
-  const parentCategories = categories.filter(c => !c.parent_id);
-  
-  // Get subcategories for a parent
-  const getSubcategories = (parentId: string) => 
-    categories.filter(c => c.parent_id === parentId);
-  
-  // Get parent name for display
-  const getParentName = (parentId: string | null) => {
-    if (!parentId) return null;
-    const parent = categories.find(c => c.id === parentId);
-    return parent?.name || null;
+  /** All categories that are immediate children of parentId */
+  const getChildren = (parentId: string | null) =>
+    categories.filter(c => c.parent_id === (parentId ?? null));
+
+  /** Recursively collect all descendant IDs (to prevent cycles in parent picker) */
+  const getDescendantIds = (id: string): string[] => {
+    const children = getChildren(id);
+    return children.flatMap(c => [c.id, ...getDescendantIds(c.id)]);
   };
 
   const handleAddSubcategory = (parentCategory: Category) => {
@@ -166,13 +162,13 @@ const CategoryManagement = () => {
     setFormData({
       ...emptyFormData,
       parent_id: parentCategory.id,
-      display_order: getSubcategories(parentCategory.id).length + 1,
+      display_order: getChildren(parentCategory.id).length + 1,
     });
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (categoryId: string) => {
-    if (!confirm("Are you sure you want to delete this category? Products in this category will be uncategorized.")) return;
+    if (!confirm("Are you sure you want to delete this category? Sub-categories and products in this category will be affected.")) return;
 
     const { error } = await supabase.from("categories").delete().eq("id", categoryId);
 
@@ -184,6 +180,93 @@ const CategoryManagement = () => {
     }
   };
 
+  /** Build a flat list of categories with depth for the parent-picker dropdown */
+  const buildFlatTree = (parentId: string | null = null, depth = 0): Array<{ cat: Category; depth: number }> => {
+    return getChildren(parentId).flatMap(cat => [
+      { cat, depth },
+      ...buildFlatTree(cat.id, depth + 1),
+    ]);
+  };
+
+  const flatTree = buildFlatTree(null, 0);
+
+  /**
+   * Recursive table row renderer — renders a category and all its descendants
+   * with increasing indentation.
+   */
+  const renderCategoryRows = (parentId: string | null = null, depth = 0): React.ReactNode => {
+    const children = getChildren(parentId);
+    if (children.length === 0) return null;
+
+    const indent = depth * 20; // px indent per level
+
+    return children.map(category => (
+      <>
+        <TableRow key={category.id} className={depth === 0 ? "" : depth === 1 ? "bg-muted/30" : "bg-muted/50"}>
+          <TableCell>
+            <div style={{ paddingLeft: `${indent}px` }}>
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </TableCell>
+          <TableCell>
+            <div className="flex items-center gap-3" style={{ paddingLeft: `${indent}px` }}>
+              {depth > 0 && <span className="text-muted-foreground">{"↳".repeat(depth)}</span>}
+              {category.image_url && (
+                <img
+                  src={category.image_url}
+                  alt={category.name}
+                  className={`object-cover rounded ${depth === 0 ? "w-10 h-10" : "w-7 h-7"}`}
+                />
+              )}
+              <div>
+                <div className={`font-medium ${depth > 0 ? "text-sm" : ""}`}>{category.name}</div>
+                {category.description && (
+                  <div className="text-xs text-muted-foreground line-clamp-1">
+                    {category.description}
+                  </div>
+                )}
+              </div>
+            </div>
+          </TableCell>
+          <TableCell className="text-muted-foreground text-sm">
+            {category.parent_id
+              ? categories.find(c => c.id === category.parent_id)?.name ?? "—"
+              : "—"}
+          </TableCell>
+          <TableCell className="text-muted-foreground">{category.slug}</TableCell>
+          <TableCell>{category.display_order}</TableCell>
+          <TableCell>
+            {category.is_active ? (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Active</span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Inactive</span>
+            )}
+          </TableCell>
+          <TableCell>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleAddSubcategory(category)}
+                title={`Add subcategory under "${category.name}"`}
+              >
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => handleEdit(category)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => handleDelete(category.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </TableCell>
+        </TableRow>
+        {/* Render children recursively */}
+        {renderCategoryRows(category.id, depth + 1)}
+      </>
+    ));
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -192,12 +275,16 @@ const CategoryManagement = () => {
     );
   }
 
+  const forbiddenParentIds = editingCategory
+    ? new Set([editingCategory.id, ...getDescendantIds(editingCategory.id)])
+    : new Set<string>();
+
   return (
     <div className="bg-background rounded-lg border">
       <div className="p-6 border-b flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Categories</h2>
-          <p className="text-sm text-muted-foreground">{categories.length} categories total</p>
+          <p className="text-sm text-muted-foreground">{categories.length} categories total · Supports unlimited nesting levels</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
@@ -216,10 +303,10 @@ const CategoryManagement = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingCategory 
-                  ? "Edit Category" 
-                  : addingSubcategoryTo 
-                    ? `Add Subcategory to "${addingSubcategoryTo.name}"`
+                {editingCategory
+                  ? "Edit Category"
+                  : addingSubcategoryTo
+                    ? `Add Subcategory under "${addingSubcategoryTo.name}"`
                     : "Add New Category"}
               </DialogTitle>
             </DialogHeader>
@@ -275,15 +362,18 @@ const CategoryManagement = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No parent (Top-level category)</SelectItem>
-                    {parentCategories
-                      .filter(c => c.id !== editingCategory?.id) // Can't be its own parent
-                      .map((cat) => (
+                    {flatTree
+                      .filter(({ cat }) => !forbiddenParentIds.has(cat.id))
+                      .map(({ cat, depth }) => (
                         <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
+                          {depth > 0 ? `${"  ".repeat(depth)}↳ ` : ""}{cat.name}
                         </SelectItem>
                       ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  You can nest categories to any depth (e.g. Tools → Power Tools → Angle Grinders)
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -328,112 +418,11 @@ const CategoryManagement = () => {
             <TableHead>Slug</TableHead>
             <TableHead>Order</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="w-[100px]">Actions</TableHead>
+            <TableHead className="w-[120px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {/* Show parent categories first, then their subcategories */}
-          {parentCategories.map((category) => (
-            <>
-              <TableRow key={category.id}>
-                <TableCell>
-                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    {category.image_url && (
-                      <img
-                        src={category.image_url}
-                        alt={category.name}
-                        className="w-10 h-10 object-cover rounded"
-                      />
-                    )}
-                    <div>
-                      <div className="font-medium">{category.name}</div>
-                      {category.description && (
-                        <div className="text-xs text-muted-foreground line-clamp-1">
-                          {category.description}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">—</TableCell>
-                <TableCell className="text-muted-foreground">{category.slug}</TableCell>
-                <TableCell>{category.display_order}</TableCell>
-                <TableCell>
-                  {category.is_active ? (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Active</span>
-                  ) : (
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Inactive</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => handleAddSubcategory(category)} title="Add subcategory">
-                      <FolderPlus className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(category)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(category.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-              {/* Render subcategories */}
-              {getSubcategories(category.id).map((subcat) => (
-                <TableRow key={subcat.id} className="bg-muted/30">
-                  <TableCell>
-                    <div className="pl-4">
-                      <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3 pl-4">
-                      <span className="text-muted-foreground">↳</span>
-                      {subcat.image_url && (
-                        <img
-                          src={subcat.image_url}
-                          alt={subcat.name}
-                          className="w-8 h-8 object-cover rounded"
-                        />
-                      )}
-                      <div>
-                        <div className="font-medium">{subcat.name}</div>
-                        {subcat.description && (
-                          <div className="text-xs text-muted-foreground line-clamp-1">
-                            {subcat.description}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{category.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{subcat.slug}</TableCell>
-                  <TableCell>{subcat.display_order}</TableCell>
-                  <TableCell>
-                    {subcat.is_active ? (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Active</span>
-                    ) : (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Inactive</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(subcat)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(subcat.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </>
-          ))}
+          {renderCategoryRows(null, 0)}
         </TableBody>
       </Table>
     </div>

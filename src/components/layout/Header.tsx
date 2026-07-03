@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, User, Heart, ShoppingCart, Menu, ChevronDown, ChevronRight, X, LogOut, Loader2, Home } from "lucide-react";
+import { Search, User, Heart, ShoppingCart, Menu, ChevronDown, ChevronRight, X, LogOut, Loader2, Home, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +17,9 @@ import { supabase } from "@/integrations/supabase/client";
 const Header = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const { user, profile, signOut, isAdmin } = useAuth();
   const { cartCount } = useCartContext();
   const navigate = useNavigate();
@@ -35,7 +38,7 @@ const Header = () => {
   });
 
   const parentCategories = categories.filter(c => !c.parent_id);
-  const getSubcategories = (parentId: string) => 
+  const getSubcategories = (parentId: string) =>
     categories.filter(c => c.parent_id === parentId);
 
   const handleSignOut = async () => {
@@ -75,8 +78,8 @@ const Header = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent border-0 outline-none px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-500"
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="bg-[#FF5722] hover:bg-[#e64a19] text-white px-8 py-2.5 font-semibold text-sm transition-colors"
               >
                 SEARCH
@@ -85,7 +88,119 @@ const Header = () => {
           </form>
 
           {/* Actions */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-5">
+
+            {/* Category Dropdown — Desktop (3-level accordion) */}
+            <div className="relative hidden md:block">
+              <button
+                onClick={() => { setCategoryMenuOpen(o => !o); setExpandedCategory(null); setExpandedSubCategory(null); }}
+                className="flex items-center gap-1.5 hover:text-[#FF5722] transition-colors text-sm font-semibold"
+              >
+                <Tag className="h-5 w-5" />
+                <span>Category</span>
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${categoryMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {categoryMenuOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => { setCategoryMenuOpen(false); setExpandedCategory(null); setExpandedSubCategory(null); }}
+                  />
+                  {/* Panel */}
+                  <div className="absolute left-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-md shadow-xl z-50 overflow-hidden">
+                    {categoriesLoading ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                      </div>
+                    ) : (
+                      <div className="py-1 max-h-[70vh] overflow-y-auto">
+                        {parentCategories.map((category) => {
+                          const subcats = getSubcategories(category.id);
+                          const isCatExpanded = expandedCategory === category.id;
+                          return (
+                            <div key={category.id}>
+                              {/* Level 1: Parent category row */}
+                              <div className="flex items-center justify-between">
+                                <Link
+                                  to={`/category/${category.slug}`}
+                                  className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-800 hover:text-[#FF5722] hover:bg-orange-50 transition-colors"
+                                  onClick={() => { setCategoryMenuOpen(false); setExpandedCategory(null); setExpandedSubCategory(null); }}
+                                >
+                                  {category.name}
+                                </Link>
+                                {subcats.length > 0 && (
+                                  <button
+                                    className="px-3 py-2.5 text-gray-400 hover:text-[#FF5722] hover:bg-orange-50 transition-colors border-l border-gray-100"
+                                    onClick={() => { setExpandedCategory(isCatExpanded ? null : category.id); setExpandedSubCategory(null); }}
+                                    aria-label={isCatExpanded ? "Collapse" : "Expand"}
+                                  >
+                                    <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isCatExpanded ? "rotate-180" : ""}`} />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Level 2: Subcategories */}
+                              {subcats.length > 0 && isCatExpanded && (
+                                <div className="bg-gray-50 border-t border-gray-100">
+                                  {subcats.map((subcat) => {
+                                    const subSubcats = getSubcategories(subcat.id);
+                                    const isSubExpanded = expandedSubCategory === subcat.id;
+                                    return (
+                                      <div key={subcat.id}>
+                                        <div className="flex items-center justify-between">
+                                          <Link
+                                            to={`/category/${subcat.slug}`}
+                                            className="flex-1 pl-7 pr-3 py-2 text-sm text-gray-700 hover:text-[#FF5722] hover:bg-orange-50 transition-colors flex items-center gap-2"
+                                            onClick={() => { setCategoryMenuOpen(false); setExpandedCategory(null); setExpandedSubCategory(null); }}
+                                          >
+                                            <ChevronRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                            {subcat.name}
+                                          </Link>
+                                          {subSubcats.length > 0 && (
+                                            <button
+                                              className="px-2.5 py-2 text-gray-400 hover:text-[#FF5722] hover:bg-orange-50 transition-colors border-l border-gray-100"
+                                              onClick={() => setExpandedSubCategory(isSubExpanded ? null : subcat.id)}
+                                              aria-label={isSubExpanded ? "Collapse" : "Expand"}
+                                            >
+                                              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isSubExpanded ? "rotate-180" : ""}`} />
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Level 3: Sub-subcategories */}
+                                        {subSubcats.length > 0 && isSubExpanded && (
+                                          <div className="bg-gray-100 border-t border-gray-200">
+                                            {subSubcats.map((child) => (
+                                              <Link
+                                                key={child.id}
+                                                to={`/category/${child.slug}`}
+                                                className="flex items-center gap-2 pl-11 pr-4 py-1.5 text-xs text-gray-600 hover:text-[#FF5722] hover:bg-orange-50 transition-colors"
+                                                onClick={() => { setCategoryMenuOpen(false); setExpandedCategory(null); setExpandedSubCategory(null); }}
+                                              >
+                                                <ChevronRight className="h-2.5 w-2.5 text-gray-400 flex-shrink-0" />
+                                                {child.name}
+                                              </Link>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Account — Desktop */}
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -139,11 +254,13 @@ const Header = () => {
               </Link>
             )}
 
+            {/* Wishlist */}
             <Link to="/wishlist" aria-label="Wishlist" className="hidden md:flex items-center gap-2 hover:text-[#FF5722] transition-colors">
               <Heart className="h-6 w-6" />
               <span className="text-sm font-medium">Wishlist</span>
             </Link>
 
+            {/* Cart */}
             <Link to="/cart" aria-label="Cart" className="relative flex items-center gap-2 hover:text-[#FF5722] transition-colors">
               <div className="relative">
                 <ShoppingCart className="h-6 w-6" />
@@ -204,95 +321,6 @@ const Header = () => {
           </div>
         </form>
       </div>
-
-      {/* Category Navigation - Desktop */}
-      <nav className="hidden md:block border-t border-gray-100">
-        <div className="container">
-          <div className="flex items-center h-10">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 text-gray-800 font-semibold hover:text-[#FF5722] transition-colors px-4 border-r border-gray-100 h-full">
-                  <Menu className="h-5 w-5" />
-                  Shop by Category
-                  <ChevronDown className="h-4 w-4 ml-1" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-64 max-h-[70vh] overflow-y-auto bg-white rounded-none border-gray-200 mt-0">
-                {categoriesLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                ) : (
-                  parentCategories.map((category) => (
-                    <div key={category.id}>
-                      <DropdownMenuItem asChild className="focus:bg-gray-50 cursor-pointer py-2">
-                        <Link to={`/category/${category.slug}`} className="font-medium flex items-center w-full">
-                          {category.name}
-                        </Link>
-                      </DropdownMenuItem>
-                      {getSubcategories(category.id).map((subcat) => (
-                        <DropdownMenuItem key={subcat.id} asChild className="focus:bg-gray-50 cursor-pointer py-1.5">
-                          <Link to={`/category/${subcat.slug}`} className="pl-6 text-sm text-gray-600">
-                            {subcat.name}
-                          </Link>
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-          <div className="flex items-center h-full px-2 overflow-hidden">
-              {parentCategories.slice(0, 3).concat(
-                // show 4th and 5th only on lg+
-                parentCategories.slice(3, 5).map(c => ({ ...c, _lgOnly: true }))
-              ).map((category: typeof parentCategories[0] & { _lgOnly?: boolean }) => {
-                const subcategories = getSubcategories(category.id);
-                return (
-                  <div
-                    key={category.id}
-                    className={`relative group h-full flex items-center${category._lgOnly ? " hidden lg:flex" : ""}`}
-                  >
-                    <Link
-                      to={`/category/${category.slug}`}
-                      className="text-gray-700 hover:text-[#FF5722] px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1"
-                    >
-                      {category.name}
-                      {subcategories.length > 0 && (
-                        <ChevronDown className="h-3 w-3 opacity-70" />
-                      )}
-                    </Link>
-                    {subcategories.length > 0 && (
-                      <div className="absolute top-full left-0 bg-white border border-gray-200 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 min-w-[220px] z-50">
-                        <div className="py-2">
-                          {subcategories.map((subcat) => (
-                            <Link
-                              key={subcat.id}
-                              to={`/category/${subcat.slug}`}
-                              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-[#FF5722] hover:bg-gray-50 transition-colors"
-                            >
-                              <ChevronRight className="h-3 w-3 text-gray-400" />
-                              {subcat.name}
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <Link to="/deals" className="text-gray-700 hover:text-[#FF5722] px-3 py-2 text-sm font-medium whitespace-nowrap flex items-center gap-1">
-                Deals <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">HOT</span>
-              </Link>
-              <Link to="/new-arrivals" className="hidden lg:flex text-gray-700 hover:text-[#FF5722] px-3 py-2 text-sm font-medium whitespace-nowrap">
-                New Arrivals
-              </Link>
-            </div>
-
-          </div>
-        </div>
-      </nav>
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (

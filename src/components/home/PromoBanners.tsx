@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, Loader2, Tag } from "lucide-react";
-import { getProxiedImageUrl } from "@/lib/imageUtils";
+import { getProductAlt } from "@/lib/imageUtils";
+import OptimizedImage from "@/components/OptimizedImage";
 
 const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US")}`;
 
@@ -68,15 +69,12 @@ const PromoBanners = () => {
                     -{discount}%
                   </span>
                   {p.image_url && (
-                    <img
-                      src={getProxiedImageUrl(p.image_url)}
-                      alt={p.name}
+                    <OptimizedImage
+                      src={p.image_url}
+                      alt={getProductAlt(p.name)}
+                      width={300}
+                      height={300}
                       className="w-full h-full object-contain p-3 group-hover:scale-[1.03] transition-transform duration-300"
-                      onError={(e) => {
-                        const t = e.target as HTMLImageElement;
-                        t.onerror = null;
-                        t.src = "/placeholder.svg";
-                      }}
                     />
                   )}
                 </div>
