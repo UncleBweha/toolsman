@@ -1,68 +1,102 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, ShieldCheck, Wrench } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { ArrowRight, Loader2, Tag } from "lucide-react";
+import { getProxiedImageUrl } from "@/lib/imageUtils";
+
+const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US")}`;
 
 const PromoBanners = () => {
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ["promo-banners"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id, name, slug, price, original_price, image_url")
+        .eq("is_active", true)
+        .not("original_price", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      return (data || []).filter((p) => p.original_price && p.original_price > p.price).slice(0, 4);
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <section className="py-4 md:py-8 bg-white">
+        <div className="container flex justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+        </div>
+      </section>
+    );
+  }
+
+  if (!products.length) return null;
+
   return (
     <section className="py-4 md:py-8 bg-white">
       <div className="container">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {/* Banner 1: Power Tools */}
-          <div className="relative bg-[#0B1D3A] text-white p-6 md:p-8 rounded-xl flex flex-col justify-between min-h-[180px] md:min-h-[220px] overflow-hidden group shadow-sm hover:shadow-md transition-all duration-300">
-            {/* Background pattern */}
-            <div className="absolute right-0 bottom-0 opacity-10 translate-x-1/4 translate-y-1/4 pointer-events-none group-hover:scale-110 transition-transform duration-500">
-              <Wrench className="h-48 w-48 text-white" />
-            </div>
-
-            <div className="space-y-2 max-w-[70%] relative z-10">
-              <span className="text-[10px] font-bold text-[#FF5722] tracking-widest uppercase">
-                High Performance
-              </span>
-              <h3 className="text-lg md:text-2xl font-extrabold text-white leading-tight">
-                Professional Power Tools
-              </h3>
-              <p className="text-xs text-gray-300 font-medium leading-relaxed">
-                Industrial drills, grinders & saws built to last.
-              </p>
-            </div>
-
-            <div className="mt-4 md:mt-0 relative z-10">
-              <Link
-                to="/category/power-hand-tools"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF5722] hover:text-white transition-colors"
-              >
-                Explore Range <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
+        {/* Section header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-[#FF5722]" />
+            <h2 className="text-base md:text-xl font-bold text-gray-900">Hot Deals</h2>
           </div>
+          <Link
+            to="/deals"
+            className="text-xs text-[#FF5722] font-semibold hover:underline flex items-center gap-1"
+          >
+            View all <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
 
-          {/* Banner 2: Safety & PPE */}
-          <div className="relative bg-gray-50 border border-gray-200 text-gray-900 p-6 md:p-8 rounded-xl flex flex-col justify-between min-h-[180px] md:min-h-[220px] overflow-hidden group shadow-sm hover:shadow-md transition-all duration-300">
-            {/* Background pattern */}
-            <div className="absolute right-0 bottom-0 opacity-5 translate-x-1/4 translate-y-1/4 pointer-events-none group-hover:scale-110 transition-transform duration-500">
-              <ShieldCheck className="h-48 w-48 text-gray-900" />
-            </div>
-
-            <div className="space-y-2 max-w-[70%] relative z-10">
-              <span className="text-[10px] font-bold text-[#FF5722] tracking-widest uppercase">
-                Safety First
-              </span>
-              <h3 className="text-lg md:text-2xl font-extrabold text-gray-900 leading-tight">
-                Verified PPE & Wearables
-              </h3>
-              <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                Protect your workforce with premium quality safety wear.
-              </p>
-            </div>
-
-            <div className="mt-4 md:mt-0 relative z-10">
+        {/* Uniform 4-column deal cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {products.map((p) => {
+            const discount = Math.round(
+              ((p.original_price! - p.price) / p.original_price!) * 100
+            );
+            return (
               <Link
-                to="/category/safety-ware-ppe"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF5722] hover:text-[#0B1D3A] transition-colors"
+                key={p.id}
+                to={`/product/${p.slug}`}
+                className="group flex flex-col bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
               >
-                Shop Safety Essentials <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
+                {/* Image */}
+                <div className="relative bg-gray-50 aspect-square overflow-hidden">
+                  <span className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    -{discount}%
+                  </span>
+                  {p.image_url && (
+                    <img
+                      src={getProxiedImageUrl(p.image_url)}
+                      alt={p.name}
+                      className="w-full h-full object-contain p-3 group-hover:scale-[1.03] transition-transform duration-300"
+                      onError={(e) => {
+                        const t = e.target as HTMLImageElement;
+                        t.onerror = null;
+                        t.src = "/placeholder.svg";
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="p-3 flex flex-col gap-1 flex-1">
+                  <h3 className="text-xs md:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">
+                    {p.name}
+                  </h3>
+                  <div className="mt-auto pt-2">
+                    <p className="text-sm font-extrabold text-gray-900">{fmt(p.price)}</p>
+                    <p className="text-[11px] text-gray-400 line-through">{fmt(p.original_price!)}</p>
+                  </div>
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs text-[#FF5722] font-semibold group-hover:underline">
+                    Shop Now <ArrowRight className="h-3 w-3" />
+                  </span>
+                </div>
               </Link>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
     </section>

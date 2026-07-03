@@ -94,48 +94,60 @@ const HeroBanner = () => {
   const eyebrow = eyebrows[currentSlide % eyebrows.length];
 
   return (
-    <section className="py-3 md:py-5 bg-white">
+    <section className="py-2 md:py-3 bg-white">
       <div className="container">
         <div
-          className="relative bg-[#0B1D3A] rounded-2xl overflow-hidden shadow-sm"
-          style={{ padding: "clamp(16px, 4vw, 40px)" }}
+          className="relative bg-gradient-to-br from-gray-50 to-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+          style={{ padding: "clamp(12px, 2vw, 24px)" }}
         >
+          {/* Decorative blobs */}
+          <motion.div
+            className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#FF5722]/10 blur-3xl"
+            aria-hidden
+            animate={{ scale: [1, 1.12, 1], opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            className="pointer-events-none absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-blue-500/5 blur-3xl"
+            aria-hidden
+            animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          />
+
           <div
-            className="relative grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12 items-center"
-            style={{ minHeight: "220px" }}
+            className="relative grid grid-cols-2 gap-3 md:gap-6 items-center"
+            style={{ minHeight: "130px" }}
           >
             {/* Left — text & CTA */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={slide.id + "-text"}
-                className="space-y-3 md:space-y-4 min-w-0"
+                className="space-y-1.5 md:space-y-3 min-w-0"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ duration: 0.35, ease: "easeInOut" }}
               >
-                <p className="text-[10px] md:text-xs font-bold text-[#FF5722] tracking-widest uppercase">
+                <p className="text-[9px] md:text-xs font-bold text-[#FF5722] tracking-wider uppercase">
                   {eyebrow}
                 </p>
-                <h2 className="text-xl md:text-3xl lg:text-4xl font-extrabold text-white leading-tight line-clamp-2 md:line-clamp-3">
+                <h2 className="text-sm md:text-2xl lg:text-3xl font-extrabold text-gray-900 leading-tight line-clamp-2 md:line-clamp-3">
                   {slide.name}
                 </h2>
-                <p className="text-base md:text-2xl font-extrabold text-white flex items-baseline gap-2">
+                <p className="text-xs md:text-base font-bold text-gray-900">
                   KSh {Number(slide.price).toLocaleString("en-US")}
                   {slide.original_price && (
-                    <span className="text-xs md:text-base text-white/40 line-through font-normal">
+                    <span className="ml-1.5 text-[10px] md:text-sm text-muted-foreground line-through font-normal">
                       KSh {Number(slide.original_price).toLocaleString("en-US")}
                     </span>
                   )}
                 </p>
-                <div>
-                  <Link
-                    to={`/product/${slide.slug}`}
-                    className="inline-flex items-center justify-center bg-[#FF5722] hover:bg-[#e64a19] text-white font-bold rounded-lg text-xs md:text-sm px-5 md:px-8 py-2.5 md:py-3.5 transition-all hover:scale-105 hover:shadow-md"
-                  >
-                    Shop Now <ArrowRight className="h-3.5 w-3.5 md:h-4 md:w-4 ml-1.5" />
-                  </Link>
-                </div>
+                <Link
+                  to={`/product/${slide.slug}`}
+                  className="inline-flex items-center justify-center bg-[#FF5722] hover:bg-[#e64a19] text-white font-semibold rounded-lg text-[11px] md:text-sm px-3 md:px-6 py-1.5 md:py-2.5 transition-all hover:scale-105 hover:shadow-md"
+                >
+                  Shop Now <ArrowRight className="h-3 w-3 md:h-4 md:w-4 ml-1 md:ml-1.5" />
+                </Link>
               </motion.div>
             </AnimatePresence>
 
@@ -144,12 +156,12 @@ const HeroBanner = () => {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={slide.id + "-img"}
-                  className="aspect-square md:aspect-auto md:h-[220px] lg:h-[260px] xl:h-[300px] w-full rounded-2xl bg-white flex items-center justify-center overflow-hidden p-4 md:p-6 shadow-lg"
+                  className="aspect-square md:aspect-auto md:h-[200px] lg:h-[240px] xl:h-[280px] w-full rounded-xl bg-white border border-gray-100 flex items-center justify-center overflow-hidden p-2 md:p-3"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.35, ease: "easeInOut" }}
-                  whileHover={{ scale: 1.01 }}
+                  whileHover={{ scale: 1.02 }}
                 >
                   <img
                     src={getProxiedImageUrl(slide.image_url)}
@@ -170,12 +182,12 @@ const HeroBanner = () => {
 
           {/* Slide indicator dots */}
           {slides.current.length > 1 && (
-            <div className="flex gap-1.5 justify-center mt-4 md:mt-6">
+            <div className="flex gap-1.5 justify-center mt-2 md:mt-3">
               {Array.from({ length: Math.min(5, slides.current.length) }).map((_, index) => (
                 <span
                   key={index}
                   className={`h-1 rounded-full transition-all ${
-                    index === currentSlide % 5 ? "w-5 bg-[#FF5722]" : "w-1.5 bg-white/30"
+                    index === currentSlide % 5 ? "w-5 bg-[#FF5722]" : "w-1 bg-gray-300"
                   }`}
                   aria-hidden
                 />

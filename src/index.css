@@ -156,7 +156,46 @@ img, video, svg {
   height: auto;
 }
 
-/* Phone number styling */
+/* ── Phone number animations (AnnouncementBar) ───────────────────────────── */
+@keyframes phone-pulse {
+  0%,  100% { opacity: 1;    transform: scale(1);    filter: brightness(1); }
+  50%        { opacity: 0.92; transform: scale(1.03); filter: brightness(1.15); }
+}
+@keyframes phone-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.phone-number-pulse {
+  animation: phone-pulse 3s ease-in-out infinite;
+  will-change: transform, filter;
+}
 .phone-number-shimmer {
-  color: #ffffff;
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #ffffff 40%,
+    rgba(255, 255, 255, 0.55) 50%,
+    #ffffff 60%,
+    #ffffff 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    phone-pulse   3s ease-in-out infinite,
+    phone-shimmer 5s linear      infinite;
+  will-change: transform, filter, background-position;
+}
+
+/* Honour user's reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .phone-number-pulse,
+  .phone-number-shimmer {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: #ffffff;
+    color: #ffffff;
+  }
 }

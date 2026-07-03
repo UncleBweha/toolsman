@@ -32,6 +32,7 @@ const SkeletonCard = () => (
   </div>
 );
 
+/* ─── Deal product card ─── */
 const DealCard = ({
   name, price, originalPrice, image, slug,
 }: {
@@ -43,17 +44,17 @@ const DealCard = ({
   return (
     <Link
       to={`/product/${slug}`}
-      className="group flex flex-col rounded-xl overflow-hidden bg-white p-3 shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.06)] hover:-translate-y-1 transition-all duration-300 h-full"
+      className="group flex flex-col rounded-xl overflow-hidden bg-white border border-gray-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
     >
       {/* Image */}
-      <div className="relative aspect-square bg-white rounded-lg overflow-hidden mb-2.5">
-        <span className="absolute top-1.5 left-1.5 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+      <div className="relative aspect-square bg-gray-50 overflow-hidden">
+        <span className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
           -{discount}%
         </span>
         <img
           src={getProxiedImageUrl(image)}
           alt={name}
-          className="w-full h-full object-contain p-2"
+          className="w-full h-full object-contain p-3 group-hover:scale-[1.03] transition-transform duration-300"
           onError={(e) => {
             (e.target as HTMLImageElement).src = "/placeholder.svg";
           }}
@@ -61,13 +62,11 @@ const DealCard = ({
       </div>
 
       {/* Info */}
-      <div className="flex flex-col gap-1 flex-1">
-        <h3 className="text-xs font-medium text-gray-900 leading-snug line-clamp-2 min-h-[2.5em] hover:text-[#FF5722] transition-colors">
-          {name}
-        </h3>
-        <div className="mt-auto pt-2 flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-sm font-bold text-[#FF5722]">{fmt(price)}</span>
-          <span className="text-[11px] text-gray-400 line-through">{fmt(originalPrice)}</span>
+      <div className="p-3 flex flex-col gap-1 flex-1">
+        <p className="text-xs text-gray-800 font-medium leading-snug line-clamp-2">{name}</p>
+        <div className="mt-auto pt-2">
+          <p className="text-sm font-extrabold text-gray-900">{fmt(price)}</p>
+          <p className="text-[11px] text-gray-400 line-through">{fmt(originalPrice)}</p>
         </div>
       </div>
     </Link>
@@ -76,8 +75,8 @@ const DealCard = ({
 
 /* ─── Time block ─── */
 const TimeBlock = ({ value, label }: { value: number; label: string }) => (
-  <div className="flex flex-col items-center bg-[#0B1D3A] text-white rounded-md px-2.5 py-1.5 min-w-[40px] shadow-sm">
-    <span className="text-sm md:text-base font-bold tabular-nums leading-none">
+  <div className="flex flex-col items-center bg-[#0f172a] text-white rounded-md px-2.5 py-1.5 min-w-[40px]">
+    <span className="text-sm md:text-base font-black tabular-nums leading-none">
       {String(value).padStart(2, "0")}
     </span>
     <span className="text-[9px] text-gray-400 uppercase tracking-wide mt-0.5">{label}</span>
@@ -114,17 +113,17 @@ const DealsCountdown = () => {
   if (!isLoading && deals.length === 0) return null;
 
   return (
-    <section className="py-6 md:py-10 bg-gray-50 border-y border-gray-100">
+    <section className="py-4 md:py-8 bg-gray-50 border-y border-gray-100">
       <div className="container">
         {/* Header row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           {/* Left: title */}
           <div className="flex items-center gap-2.5">
             <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-[#FF5722]">
               <Zap className="h-3.5 w-3.5 text-white" />
             </span>
             <h2 className="text-base md:text-xl font-bold text-gray-900">Flash Deals</h2>
-            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FF5722]/10 border border-[#FF5722]/20 text-[#FF5722] text-[10px] font-bold uppercase tracking-wide">
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold uppercase tracking-wide">
               Today Only
             </span>
           </div>
@@ -152,7 +151,7 @@ const DealsCountdown = () => {
         </div>
 
         {/* Product grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {isLoading
             ? Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
             : deals.map((p) => (

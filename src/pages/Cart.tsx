@@ -60,9 +60,9 @@ const Cart = () => {
         ) : (
           <div className="grid lg:grid-cols-12 gap-8">
             <div className="lg:col-span-8">
-              <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.03)]">
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                 {/* Table Header */}
-                <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-500">
+                <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50/50 text-sm font-semibold text-gray-600">
                   <div className="col-span-5">Product</div>
                   <div className="col-span-2 text-center">Price</div>
                   <div className="col-span-2 text-center">Quantity</div>
@@ -86,7 +86,7 @@ const Cart = () => {
                         <div className="flex flex-col justify-center">
                           <Link 
                             to={`/product/${item.product?.slug}`}
-                            className="font-semibold text-gray-900 text-sm hover:text-[#FF5722] transition-colors line-clamp-2"
+                            className="font-bold text-gray-900 text-sm hover:text-[#FF5722] transition-colors line-clamp-2"
                           >
                             {item.product?.name}
                           </Link>
@@ -100,7 +100,7 @@ const Cart = () => {
                       </div>
 
                       {/* Price (Mobile & Desktop) */}
-                      <div className="md:col-span-2 md:text-center font-bold text-gray-900 flex justify-between md:block">
+                      <div className="md:col-span-2 md:text-center font-extrabold text-gray-900 flex justify-between md:block">
                         <span className="md:hidden text-gray-500 font-medium text-sm">Price:</span>
                         {formatPrice(item.product?.price || 0)}
                       </div>
@@ -127,7 +127,7 @@ const Cart = () => {
                       </div>
 
                       {/* Subtotal */}
-                      <div className="md:col-span-2 md:text-center font-bold text-gray-900 flex justify-between md:block">
+                      <div className="md:col-span-2 md:text-center font-extrabold text-gray-900 flex justify-between md:block">
                         <span className="md:hidden text-gray-500 font-medium text-sm">Subtotal:</span>
                         {formatPrice((item.product?.price || 0) * item.quantity)}
                       </div>
@@ -178,7 +178,7 @@ const Cart = () => {
             </div>
 
             <div className="lg:col-span-4">
-              <Card className="border border-gray-100 shadow-[0_4px_12px_rgba(0,0,0,0.03)] rounded-xl sticky top-24">
+              <Card className="border-gray-200 shadow-sm rounded-xl sticky top-24">
                 <CardContent className="p-6">
                   <h3 className="text-lg font-bold text-gray-900 mb-6">Order Summary</h3>
                   
@@ -201,7 +201,7 @@ const Cart = () => {
                   
                   <div className="flex justify-between items-end mb-6">
                     <span className="text-base font-bold text-gray-900">Total</span>
-                    <span className="text-2xl font-bold text-gray-900">{formatPrice(finalTotal)}</span>
+                    <span className="text-2xl font-extrabold text-gray-900">{formatPrice(finalTotal)}</span>
                   </div>
 
                   <div className="bg-green-50 border border-green-100 rounded-lg p-3 mb-6 flex items-start gap-2">
