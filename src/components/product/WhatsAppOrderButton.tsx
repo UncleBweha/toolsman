@@ -18,7 +18,7 @@ export const WhatsAppOrderButton = ({ productName, price, url, className = "" }:
     >
       <a href={href} target="_blank" rel="noopener noreferrer" aria-label="Order via WhatsApp">
         <MessageCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-        ORDER VIA WHATSAPP
+        ORDER ON WHATSAPP
       </a>
     </Button>
   );
