@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      brands: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          is_featured: boolean
+          logo_url: string | null
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          is_featured?: boolean
+          logo_url?: string | null
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          is_featured?: boolean
+          logo_url?: string | null
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string
@@ -234,6 +273,8 @@ export type Database = {
           name: string
           original_price: number | null
           price: number
+          rating: number | null
+          review_count: number
           sku: string | null
           slug: string
           status: string | null
@@ -255,6 +296,8 @@ export type Database = {
           name: string
           original_price?: number | null
           price: number
+          rating?: number | null
+          review_count?: number
           sku?: string | null
           slug: string
           status?: string | null
@@ -276,6 +319,8 @@ export type Database = {
           name?: string
           original_price?: number | null
           price?: number
+          rating?: number | null
+          review_count?: number
           sku?: string | null
           slug?: string
           status?: string | null
@@ -329,6 +374,30 @@ export type Database = {
           middle_name?: string | null
           phone?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      search_queries: {
+        Row: {
+          count: number
+          created_at: string
+          id: string
+          last_searched_at: string
+          query: string
+        }
+        Insert: {
+          count?: number
+          created_at?: string
+          id?: string
+          last_searched_at?: string
+          query: string
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          id?: string
+          last_searched_at?: string
+          query?: string
         }
         Relationships: []
       }
@@ -490,6 +559,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      log_search_query: { Args: { _query: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

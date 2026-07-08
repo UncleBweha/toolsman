@@ -57,7 +57,7 @@ const Product = () => {
 
       if (error) throw error;
       if (!data) throw new Error("Product not found");
-      return data as ProductType & { category: { name: string; slug: string } | null };
+      return data as unknown as ProductType & { category: { name: string; slug: string } | null };
     },
     enabled: !!slug,
     staleTime: 60 * 1000,
