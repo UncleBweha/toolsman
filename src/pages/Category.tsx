@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/home/ProductCard";
 import SidebarFilter, { FilterState } from "@/components/home/SidebarFilter";
+import Breadcrumbs, { Crumb } from "@/components/Breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Grid3X3, LayoutList } from "lucide-react";
+import { Loader2, Grid3X3, LayoutList } from "lucide-react";
 import { Product, Category as CategoryType } from "@/types/database";
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -16,16 +18,20 @@ import {
 } from "@/components/ui/pagination";
 import OptimizedImage from "@/components/OptimizedImage";
 import { getProductAlt } from "@/lib/imageUtils";
+import { SORT_OPTIONS, sortProducts, SortKey } from "@/lib/sortOptions";
 
 const PRODUCTS_PER_PAGE = 12;
+const SITE = "https://toolsman.lovable.app";
 const fmt = (n: number) => `KSh ${Number(n).toLocaleString("en-US")}`;
 
 const Category = () => {
   const { slug } = useParams<{ slug: string }>();
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy, setSortBy] = useState<SortKey>("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState<FilterState>({ priceRange: [0, 100000], brands: [] });
+  const [filters, setFilters] = useState<FilterState>({
+    priceRange: [0, 100000], brands: [], inStockOnly: false, minRating: 0,
+  });
 
   const { data: category, isLoading: categoryLoading } = useQuery({
     queryKey: ["category", slug],
@@ -38,7 +44,25 @@ const Category = () => {
     enabled: !!slug,
   });
 
-  // Subcategories of current category
+  // Build breadcrumb ancestry
+  const { data: ancestors = [] } = useQuery({
+    queryKey: ["category-ancestry", category?.id],
+    queryFn: async () => {
+      const chain: CategoryType[] = [];
+      let curr: CategoryType | undefined = category!;
+      // Walk up to root
+      while (curr?.parent_id) {
+        const { data } = await supabase
+          .from("categories").select("*").eq("id", curr.parent_id).maybeSingle();
+        if (!data) break;
+        chain.unshift(data as CategoryType);
+        curr = data as CategoryType;
+      }
+      return chain;
+    },
+    enabled: !!category?.id,
+  });
+
   const { data: subcategories = [] } = useQuery({
     queryKey: ["subcategories", category?.id],
     queryFn: async () => {
@@ -53,7 +77,6 @@ const Category = () => {
     enabled: !!category?.id,
   });
 
-  // All products in category (for client-side filtering)
   const { data: allProducts = [], isLoading: productsLoading } = useQuery({
     queryKey: ["category-products-all", category?.id],
     queryFn: async () => {
@@ -71,11 +94,14 @@ const Category = () => {
     return Math.max(...allProducts.map((p) => Number(p.price) || 0), 1000);
   }, [allProducts]);
 
-  // Sync price range when product set / max price changes
+  const availableBrands = useMemo(
+    () => Array.from(new Set(allProducts.map((p) => p.brand).filter(Boolean) as string[])).sort(),
+    [allProducts]
+  );
+
   useEffect(() => {
     setFilters((prev) => {
       const [lo, hi] = prev.priceRange;
-      // First load (default 100000) OR upper bound out of bounds → reset to full range
       if (hi === 100000 || hi > maxPrice || lo > maxPrice) {
         return { ...prev, priceRange: [0, maxPrice] };
       }
@@ -83,26 +109,16 @@ const Category = () => {
     });
   }, [maxPrice]);
 
-
   const filteredSorted = useMemo(() => {
-    let arr = allProducts.filter((p) => {
+    const filtered = allProducts.filter((p) => {
       const price = Number(p.price) || 0;
       if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false;
-      if (filters.brands.length) {
-        const first = (p.name || "").trim().split(/\s+/)[0];
-        if (!filters.brands.includes(first)) return false;
-      }
+      if (filters.brands.length && !filters.brands.includes(p.brand || "")) return false;
+      if (filters.inStockOnly && (p.stock_quantity ?? 0) <= 0) return false;
+      if (filters.minRating > 0 && (Number((p as any).rating) || 0) < filters.minRating) return false;
       return true;
     });
-    switch (sortBy) {
-      case "price-low": arr = [...arr].sort((a, b) => a.price - b.price); break;
-      case "price-high": arr = [...arr].sort((a, b) => b.price - a.price); break;
-      case "name": arr = [...arr].sort((a, b) => a.name.localeCompare(b.name)); break;
-      default: arr = [...arr].sort(
-        (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
-      );
-    }
-    return arr;
+    return sortProducts(filtered, sortBy);
   }, [allProducts, filters, sortBy]);
 
   const totalCount = filteredSorted.length;
@@ -133,6 +149,11 @@ const Category = () => {
     return pages;
   };
 
+  const crumbs: Crumb[] = [
+    ...ancestors.map((a) => ({ label: a.name, href: `/category/${a.slug}` })),
+    { label: category?.name || "…" },
+  ];
+
   if ((categoryLoading || productsLoading) && !allProducts.length) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -160,13 +181,26 @@ const Category = () => {
     );
   }
 
+  const seoTitle = `${category.name} in Kenya — Buy online | Toolsman`;
+  const seoDesc =
+    category.description ||
+    `Shop ${category.name} in Kenya at Toolsman. ${totalCount}+ genuine products, fast delivery, secure payment, warranty on all items.`;
+  const canonical = `${SITE}/category/${category.slug}`;
+
   return (
     <div className="min-h-screen flex flex-col">
+      <Helmet>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDesc} />
+        <link rel="canonical" href={canonical} />
+        <meta property="og:title" content={seoTitle} />
+        <meta property="og:description" content={seoDesc} />
+        <meta property="og:url" content={canonical} />
+        <meta property="og:type" content="website" />
+      </Helmet>
       <Header />
       <main className="flex-1 container py-6 md:py-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" /> Back to Shop
-        </Link>
+        <Breadcrumbs items={crumbs} />
 
         <div className="flex flex-col md:flex-row">
           <SidebarFilter
@@ -175,6 +209,7 @@ const Category = () => {
             filters={filters}
             onChange={(f) => { setFilters(f); setCurrentPage(1); }}
             subcategories={subcategories}
+            availableBrands={availableBrands}
           />
           <div className="flex-1 min-w-0">
             <div className="mb-6">
@@ -184,7 +219,7 @@ const Category = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+            <div className="sticky top-24 z-10 bg-white/95 backdrop-blur mb-6 py-2 -mx-2 px-2 rounded flex items-center justify-between flex-wrap gap-3">
               <p className="text-muted-foreground text-sm">
                 {totalCount} {totalCount === 1 ? "product" : "products"}
               </p>
@@ -197,13 +232,12 @@ const Category = () => {
                     <LayoutList className="h-4 w-4" />
                   </Button>
                 </div>
-                <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setCurrentPage(1); }}>
-                  <SelectTrigger className="w-[170px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
+                <Select value={sortBy} onValueChange={(v) => { setSortBy(v as SortKey); setCurrentPage(1); }}>
+                  <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="newest">Newest</SelectItem>
-                    <SelectItem value="price-low">Price: Low to High</SelectItem>
-                    <SelectItem value="price-high">Price: High to Low</SelectItem>
-                    <SelectItem value="name">Name</SelectItem>
+                    {SORT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -212,7 +246,7 @@ const Category = () => {
             {products.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-muted-foreground mb-4">No products match your filters</p>
-                <Button onClick={() => setFilters({ priceRange: [0, maxPrice], brands: [] })}>
+                <Button onClick={() => setFilters({ priceRange: [0, maxPrice], brands: [], inStockOnly: false, minRating: 0 })}>
                   Clear Filters
                 </Button>
               </div>

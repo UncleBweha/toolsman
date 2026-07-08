@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, User, Heart, ShoppingCart, Menu, ChevronDown, ChevronRight, X, LogOut, Loader2, Home, Tag } from "lucide-react";
+import { User, Heart, ShoppingCart, Menu, ChevronDown, ChevronRight, X, LogOut, Loader2, Home, Tag } from "lucide-react";
+import InstantSearchBox from "@/components/layout/InstantSearchBox";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -69,23 +70,9 @@ const Header = () => {
           </Link>
 
           {/* Search Bar - Desktop */}
-          <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-2xl mx-8">
-            <div className="relative w-full flex items-center bg-white border border-gray-300 rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-[#FF5722] focus-within:border-transparent">
-              <input
-                type="text"
-                placeholder="Search products, brands, categories..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-0 outline-none px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-500"
-              />
-              <button
-                type="submit"
-                className="bg-[#FF5722] hover:bg-[#e64a19] text-white px-8 py-2.5 font-semibold text-sm transition-colors"
-              >
-                SEARCH
-              </button>
-            </div>
-          </form>
+          <div className="hidden md:flex flex-1 max-w-2xl mx-8">
+            <InstantSearchBox />
+          </div>
 
           {/* Actions */}
           <div className="flex items-center gap-5">
@@ -306,20 +293,9 @@ const Header = () => {
         </div>
 
         {/* Search Bar - Mobile */}
-        <form onSubmit={handleSearch} className="md:hidden mt-4">
-          <div className="relative w-full flex items-center bg-white border border-gray-300 rounded-md overflow-hidden">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent border-0 outline-none px-3 py-2 text-sm text-gray-900"
-            />
-            <button type="submit" className="bg-[#FF5722] text-white px-4 py-2 text-sm font-semibold">
-              Go
-            </button>
-          </div>
-        </form>
+        <div className="md:hidden mt-4">
+          <InstantSearchBox compact placeholder="Search products..." />
+        </div>
       </div>
 
       {/* Mobile Menu */}
