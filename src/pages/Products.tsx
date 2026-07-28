@@ -106,7 +106,7 @@ const Products = () => {
         </Link>
 
         <div className="flex flex-col md:flex-row">
-          <SidebarFilter filters={{ priceRange: [0, 100000], brands: [] }} onChange={() => {}} />
+          <SidebarFilter filters={{ priceRange: [0, 100000], brands: [], inStockOnly: false, minRating: 0 }} onChange={() => {}} />
           <div className="flex-1">
             <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold">{getTitle()}</h1>

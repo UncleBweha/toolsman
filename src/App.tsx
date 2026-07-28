@@ -33,6 +33,8 @@ const FAQs = lazy(() => import("./pages/FAQs"));
 const ShippingPolicy = lazy(() => import("./pages/ShippingPolicy"));
 const ReturnPolicy = lazy(() => import("./pages/ReturnPolicy"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const Brands = lazy(() => import("./pages/Brands"));
+const Brand = lazy(() => import("./pages/Brand"));
 
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -81,6 +83,8 @@ const App = () => (
                 <Route path="/shipping-policy" element={<ShippingPolicy />} />
                 <Route path="/return-policy" element={<ReturnPolicy />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/brands" element={<Brands />} />
+                <Route path="/brand/:slug" element={<Brand />} />
                 <Route path="/admin/*" element={<Admin />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
