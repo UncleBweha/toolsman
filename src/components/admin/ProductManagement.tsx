@@ -44,7 +44,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, FolderOpen, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, FolderOpen, Search, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 
 interface ProductFormData {
   name: string;
@@ -91,6 +91,7 @@ const ProductManagement = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadingAdditional, setIsUploadingAdditional] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState<ProductFormData>(emptyFormData);
@@ -181,6 +182,133 @@ const ProductManagement = () => {
     } finally {
       if (isPrimary) setIsUploading(false);
       else setIsUploadingAdditional(false);
+    }
+  };
+
+  // ── AI: generate product-page content from the primary image ──────────────
+  interface GeneratedContent {
+    identified?: boolean;
+    confidence?: "high" | "medium" | "low";
+    product_title?: string;
+    short_summary?: string;
+    brand?: string;
+    model?: string;
+    key_benefits?: string[];
+    product_features?: string[];
+    description?: {
+      overview?: string;
+      why_useful?: string;
+      key_features_in_use?: string;
+      real_world_applications?: string;
+      who_its_best_for?: string;
+      why_choose?: string;
+    };
+    technical_specifications?: { label: string; value: string }[];
+    package_contents?: string[];
+    compatibility?: string[];
+    before_you_buy?: string[];
+    how_to_use?: string[];
+    safety_information?: string[];
+    ai_summary?: string;
+    tags?: string[];
+  }
+
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  /**
+   * Compose the rich HTML description the Product page renders (it sanitizes
+   * with DOMPurify and styles it via `prose`). Only sections with verified
+   * content are included — empty fields are silently skipped.
+   */
+  const composeDescriptionHtml = (d: GeneratedContent): string => {
+    const parts: string[] = [];
+    const p = (t?: string) => { if (t && t.trim()) parts.push(`<p>${escapeHtml(t.trim())}</p>`); };
+    const section = (heading: string, body?: string) => {
+      if (body && body.trim()) { parts.push(`<h3>${heading}</h3>`); p(body); }
+    };
+    const list = (heading: string, items?: string[]) => {
+      const clean = (items || []).map(i => (i || "").trim()).filter(Boolean);
+      if (clean.length === 0) return;
+      parts.push(`<h3>${heading}</h3>`);
+      parts.push(`<ul>${clean.map(i => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`);
+    };
+
+    p(d.short_summary);
+    const desc = d.description || {};
+    section("Overview", desc.overview);
+    section("Why It’s Useful", desc.why_useful);
+    section("Key Features in Use", desc.key_features_in_use);
+    section("Real-World Applications", desc.real_world_applications);
+    section("Who It’s Best For", desc.who_its_best_for);
+    section("Why Choose This Product", desc.why_choose);
+    list("Key Benefits", d.key_benefits);
+
+    const specs = (d.technical_specifications || []).filter(s => s?.label?.trim() && s?.value?.trim());
+    if (specs.length > 0) {
+      parts.push(`<h3>Technical Specifications</h3>`);
+      parts.push(`<ul>${specs.map(s => `<li><strong>${escapeHtml(s.label.trim())}:</strong> ${escapeHtml(s.value.trim())}</li>`).join("")}</ul>`);
+    }
+
+    list("Package Contents", d.package_contents);
+    list("Compatibility", d.compatibility);
+    list("Before You Buy", d.before_you_buy);
+    list("How to Use", d.how_to_use);
+    list("Safety Information", d.safety_information);
+
+    return parts.join("\n");
+  };
+
+  const handleGenerateContent = async () => {
+    if (!formData.image_url) {
+      toast.error("Add or upload a primary image first, then generate.");
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const catId = formData.subcategory_id || formData.category_id;
+      const categoryName =
+        categories.find(c => c.id === catId)?.name ||
+        categories.find(c => c.id === formData.category_id)?.name || "";
+
+      const { data, error } = await supabase.functions.invoke("generate-product-content", {
+        body: {
+          image_url: formData.image_url,
+          category: categoryName,
+          brand_hint: formData.brand || "",
+        },
+      });
+
+      if (error) throw new Error(error.message || "Generation failed");
+      if (!data?.success || !data?.data) throw new Error(data?.error || "No content returned");
+
+      const g = data.data as GeneratedContent;
+
+      const newName = (g.product_title || "").trim();
+      const features = (g.product_features || []).map(f => (f || "").trim()).filter(Boolean).join("\n");
+      const tags = (g.tags || []).map(t => (t || "").trim()).filter(Boolean).join(", ");
+      const descriptionHtml = composeDescriptionHtml(g);
+
+      setFormData(prev => ({
+        ...prev,
+        name: newName || prev.name,
+        slug: newName ? generateSlug(newName) : prev.slug,
+        brand: (g.brand || "").trim() || prev.brand,
+        description: descriptionHtml || prev.description,
+        key_features: features || prev.key_features,
+        tags: tags || prev.tags,
+      }));
+
+      if (g.identified === false || g.confidence === "low") {
+        toast.warning("Content generated, but the product was hard to identify — please review every field carefully before saving.");
+      } else {
+        toast.success("Product content generated. Review and edit before saving.");
+      }
+    } catch (err) {
+      console.error("Generate content error:", err);
+      toast.error(`Generation failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -810,6 +938,25 @@ const ProductManagement = () => {
                 {formData.image_url && (
                   <img src={formData.image_url} alt="Preview" className="w-20 h-20 object-contain rounded border mt-1 bg-white" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 )}
+                <div className="pt-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full gap-2"
+                    onClick={handleGenerateContent}
+                    disabled={!formData.image_url || isGenerating}
+                    title="Analyze the primary image and auto-fill title, description, features & tags"
+                  >
+                    {isGenerating ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Analyzing image…</>
+                    ) : (
+                      <><Sparkles className="h-4 w-4" /> Generate content from image (AI)</>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Fills Title, Description, Key Features &amp; Tags from the image. Facts only — always review before saving.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-2">
