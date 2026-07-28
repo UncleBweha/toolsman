@@ -67,14 +67,19 @@ const Product = () => {
   // OG / Twitter meta tags — MUST be before any early returns to preserve hook order
   useEffect(() => {
     if (!product) return;
-    const plainDesc = (product.description || "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 160);
+    // Prefer admin-set / AI-generated SEO overrides; fall back to derived values.
+    const plainDesc = product.seo_description?.trim()
+      ? product.seo_description.trim().slice(0, 160)
+      : (product.description || "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 160);
     const url = `${SITE.url}/product/${product.slug}`;
     const image = product.image_url || (product.images && product.images[0]) || "";
-    const title = `${product.name} | ${SITE.name}`;
+    const title = product.seo_title?.trim()
+      ? product.seo_title.trim()
+      : `${product.name} | ${SITE.name}`;
 
     const setMeta = (selector: string, attr: string, value: string) => {
       let el = document.head.querySelector<HTMLMetaElement>(selector);

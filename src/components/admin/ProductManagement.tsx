@@ -60,6 +60,8 @@ interface ProductFormData {
   brand: string;
   tags: string;
   key_features: string;
+  seo_title: string;
+  seo_description: string;
   status: string;
   is_featured: boolean;
   is_active: boolean;
@@ -79,6 +81,8 @@ const emptyFormData: ProductFormData = {
   brand: "",
   tags: "",
   key_features: "",
+  seo_title: "",
+  seo_description: "",
   status: "active",
   is_featured: false,
   is_active: true,
@@ -211,10 +215,21 @@ const ProductManagement = () => {
     safety_information?: string[];
     ai_summary?: string;
     tags?: string[];
+    seo_title?: string;
+    seo_description?: string;
   }
 
   const escapeHtml = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Trim to a max length on a word boundary (no mid-word cut, no trailing junk).
+  const cap = (s: string, max: number): string => {
+    const t = (s || "").trim();
+    if (t.length <= max) return t;
+    const sliced = t.slice(0, max);
+    const lastSpace = sliced.lastIndexOf(" ");
+    return (lastSpace > max * 0.6 ? sliced.slice(0, lastSpace) : sliced).trim();
+  };
 
   /**
    * Compose the rich HTML description the Product page renders (it sanitizes
@@ -245,6 +260,11 @@ const ProductManagement = () => {
     list("Key Benefits", d.key_benefits);
 
     const specs = (d.technical_specifications || []).filter(s => s?.label?.trim() && s?.value?.trim());
+    // Ensure the verified model number is surfaced as a spec if not already present.
+    const hasModelSpec = specs.some(s => /model/i.test(s.label));
+    if (d.model && d.model.trim() && !hasModelSpec) {
+      specs.unshift({ label: "Model", value: d.model.trim() });
+    }
     if (specs.length > 0) {
       parts.push(`<h3>Technical Specifications</h3>`);
       parts.push(`<ul>${specs.map(s => `<li><strong>${escapeHtml(s.label.trim())}:</strong> ${escapeHtml(s.value.trim())}</li>`).join("")}</ul>`);
@@ -284,10 +304,14 @@ const ProductManagement = () => {
 
       const g = data.data as GeneratedContent;
 
-      const newName = (g.product_title || "").trim();
+      const newName = cap(g.product_title || "", 80);
       const features = (g.product_features || []).map(f => (f || "").trim()).filter(Boolean).join("\n");
       const tags = (g.tags || []).map(t => (t || "").trim()).filter(Boolean).join(", ");
       const descriptionHtml = composeDescriptionHtml(g);
+      // SEO fields — prefer the model's dedicated SEO output, fall back to the
+      // title / AI summary / short summary so the columns are never left blank.
+      const seoTitle = cap(g.seo_title || g.product_title || "", 60);
+      const seoDescription = cap(g.seo_description || g.ai_summary || g.short_summary || "", 160);
 
       setFormData(prev => ({
         ...prev,
@@ -297,6 +321,8 @@ const ProductManagement = () => {
         description: descriptionHtml || prev.description,
         key_features: features || prev.key_features,
         tags: tags || prev.tags,
+        seo_title: seoTitle || prev.seo_title,
+        seo_description: seoDescription || prev.seo_description,
       }));
 
       if (g.identified === false || g.confidence === "low") {
@@ -393,6 +419,8 @@ const ProductManagement = () => {
       brand: formData.brand?.trim() || null,
       tags: formData.tags ? formData.tags.split(",").map(t => t.trim()).filter(Boolean) : [],
       key_features: parseKeyFeatures(formData.key_features),
+      seo_title: formData.seo_title?.trim() || null,
+      seo_description: formData.seo_description?.trim() || null,
 
       status: formData.status || "active",
       is_featured: formData.is_featured,
@@ -471,6 +499,8 @@ const ProductManagement = () => {
       brand: product.brand || "",
       tags: existingManualTags.join(", "),
       key_features: featuresForTextarea,
+      seo_title: product.seo_title || "",
+      seo_description: product.seo_description || "",
       status: product.status || "active",
       is_featured: product.is_featured,
       is_active: product.is_active,
@@ -1047,6 +1077,40 @@ const ProductManagement = () => {
                   placeholder="power tool, cordless, drill (comma-separated)"
                 />
                 <p className="text-xs text-muted-foreground">Comma-separated. Click <strong>Auto-Generate</strong> to build keyword tags from title, brand, category &amp; features.</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="seo_title">SEO Title</Label>
+                  <span className={`text-xs ${formData.seo_title.length > 60 ? "text-red-500" : "text-muted-foreground"}`}>
+                    {formData.seo_title.length}/60
+                  </span>
+                </div>
+                <Input
+                  id="seo_title"
+                  value={formData.seo_title}
+                  onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })}
+                  placeholder="Overrides the browser tab / search title. Leave blank to use the product name."
+                  maxLength={70}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="seo_description">SEO Meta Description</Label>
+                  <span className={`text-xs ${formData.seo_description.length > 160 ? "text-red-500" : "text-muted-foreground"}`}>
+                    {formData.seo_description.length}/160
+                  </span>
+                </div>
+                <textarea
+                  id="seo_description"
+                  value={formData.seo_description}
+                  onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })}
+                  placeholder="The snippet shown in Google / social previews. Leave blank to auto-derive from the description."
+                  rows={2}
+                  maxLength={200}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
               </div>
 
               <div className="space-y-2">
