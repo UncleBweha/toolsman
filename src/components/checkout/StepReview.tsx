@@ -74,7 +74,8 @@ export const StepReview = ({
         <div className={`bg-gray-50 border border-gray-200 rounded-xl p-4 ${delivery.isPickupOrder ? "" : ""}`}>
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Payment</h3>
           <p className="font-semibold text-gray-900 text-sm">M-Pesa ✓</p>
-          <p className="text-xs text-gray-500 font-mono">{payment.mpesaCode}</p>
+          <p className="text-xs text-gray-500 font-mono">{payment.mpesaReceiptNumber}</p>
+          <p className="text-xs text-gray-400">{payment.phone}</p>
         </div>
 
         {/* eTIMS receipt — full width when VAT enabled */}

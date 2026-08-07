@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Smartphone, CreditCard, CheckCircle2, Loader2 } from "lucide-react";
+import { Smartphone, CreditCard, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { validateKenyanPhone } from "@/lib/checkoutConstants";
 
 export interface PaymentInfo {
   method: "mpesa";
-  mpesaCode: string;
+  phone: string;
+  checkoutRequestId: string;
+  mpesaReceiptNumber: string;
   confirmed: boolean;
 }
 
@@ -17,32 +21,103 @@ interface Props {
   onBack: () => void;
 }
 
-const inputCls = "border border-gray-300 rounded-lg h-11 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#FF5722] focus:border-transparent bg-white uppercase";
+const inputCls = "border border-gray-300 rounded-lg h-11 px-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-[#FF5722] focus:border-transparent bg-white";
+
+type PushState = "idle" | "pushed" | "confirmed" | "failed";
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 90000;
 
 export const StepPayment = ({ total, data, onNext, onBack }: Props) => {
-  const [mpesaCode, setMpesaCode] = useState(data.mpesaCode);
-  const [confirming, setConfirming] = useState(false);
-  const [confirmed, setConfirmed] = useState(data.confirmed);
+  const [phone, setPhone] = useState(data.phone);
+  const [pushState, setPushState] = useState<PushState>(data.confirmed ? "confirmed" : "idle");
+  const [checkoutRequestId, setCheckoutRequestId] = useState(data.checkoutRequestId);
+  const [mpesaReceiptNumber, setMpesaReceiptNumber] = useState(data.mpesaReceiptNumber);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollDeadline = useRef<number>(0);
 
-  const formatPrice = (n: number) => `Kshs ${n.toLocaleString("en-US")}`;
+  useEffect(() => () => stopPolling(), []);
 
-  const handleConfirm = async () => {
-    const code = mpesaCode.trim().toUpperCase();
-    if (!code) { setError("Enter the M-Pesa confirmation code"); return; }
-    if (!/^[A-Z0-9]{8,12}$/.test(code)) { setError("Enter a valid M-Pesa code (e.g. QGH4XXXXXXX)"); return; }
+  const stopPolling = () => {
+    if (pollTimer.current) {
+      clearInterval(pollTimer.current);
+      pollTimer.current = null;
+    }
+  };
+
+  const startPolling = (reqId: string) => {
+    stopPolling();
+    pollDeadline.current = Date.now() + POLL_TIMEOUT_MS;
+    pollTimer.current = setInterval(async () => {
+      if (Date.now() > pollDeadline.current) {
+        stopPolling();
+        setPushState("failed");
+        setError("We didn't receive confirmation in time. Please try again.");
+        return;
+      }
+      try {
+        const { data: result, error: fnError } = await supabase.functions.invoke("mpesa-stk-query", {
+          body: { checkoutRequestId: reqId },
+        });
+        if (fnError) return; // keep polling, transient network error
+        if (result?.status === "success") {
+          stopPolling();
+          setMpesaReceiptNumber(result.mpesaReceiptNumber || "");
+          setPushState("confirmed");
+        } else if (result?.status === "failed") {
+          stopPolling();
+          setPushState("failed");
+          setError(result.resultDesc || "Payment was not completed. Please try again.");
+        }
+        // "pending" → keep polling
+      } catch {
+        // transient — keep polling until timeout
+      }
+    }, POLL_INTERVAL_MS);
+  };
+
+  const handleSendPush = async () => {
+    const cleaned = phone.trim();
+    if (!validateKenyanPhone(cleaned)) {
+      setError("Enter a valid Kenyan phone number (e.g. 0712345678)");
+      return;
+    }
     setError("");
-    setConfirming(true);
-    // Simulate brief verification delay
-    await new Promise(r => setTimeout(r, 1500));
-    setConfirming(false);
-    setConfirmed(true);
+    setSending(true);
+    try {
+      const { data: result, error: fnError } = await supabase.functions.invoke("mpesa-stk-push", {
+        body: { phone: cleaned, amount: total },
+      });
+      if (fnError || result?.error) {
+        throw new Error(result?.error || fnError?.message || "Failed to send STK push");
+      }
+      setCheckoutRequestId(result.checkoutRequestId);
+      setPushState("pushed");
+      startPolling(result.checkoutRequestId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send M-Pesa prompt. Please try again.");
+      setPushState("failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRetry = () => {
+    stopPolling();
+    setPushState("idle");
+    setError("");
+    setCheckoutRequestId("");
+    setMpesaReceiptNumber("");
   };
 
   const handleNext = () => {
-    if (!confirmed) { setError("Please confirm your M-Pesa payment first"); return; }
-    onNext({ method: "mpesa", mpesaCode: mpesaCode.trim().toUpperCase(), confirmed: true });
+    if (pushState !== "confirmed") { setError("Please complete the M-Pesa payment first"); return; }
+    onNext({ method: "mpesa", phone: phone.trim(), checkoutRequestId, mpesaReceiptNumber, confirmed: true });
   };
+
+  const formatPrice = (n: number) => `Kshs ${n.toLocaleString("en-US")}`;
 
   return (
     <div className="space-y-6">
@@ -55,48 +130,62 @@ export const StepPayment = ({ total, data, onNext, onBack }: Props) => {
             <div className="w-2.5 h-2.5 rounded-full bg-[#FF5722]" />
           </div>
           <Smartphone className="h-5 w-5 text-[#FF5722]" />
-          <span className="font-bold text-gray-900">M-Pesa</span>
+          <span className="font-bold text-gray-900">Lipa na M-Pesa</span>
           <span className="ml-auto font-bold text-green-600 text-xs italic">M-PESA</span>
         </div>
 
-        {!confirmed ? (
+        {pushState === "idle" || pushState === "failed" ? (
           <div className="bg-white rounded-lg p-4 border border-orange-100 space-y-4">
-            <div className="text-sm text-gray-700 space-y-1">
-              <p className="font-semibold text-gray-900">How to Pay:</p>
-              <ol className="list-decimal list-inside space-y-1 text-gray-600">
-                <li>Go to M-Pesa → Lipa na M-Pesa → Pay Bill</li>
-                <li>Business No: <strong className="text-gray-900">522200</strong></li>
-                <li>Account No: <strong className="text-gray-900">TOOLSMAN</strong></li>
-                <li>Amount: <strong className="text-[#FF5722]">{formatPrice(total)}</strong></li>
-                <li>Enter your M-Pesa PIN and confirm</li>
-              </ol>
-            </div>
+            <p className="text-sm text-gray-700">
+              Enter your M-Pesa number. You'll get a prompt on your phone to pay{" "}
+              <strong className="text-[#FF5722]">{formatPrice(total)}</strong>.
+            </p>
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold text-gray-700">M-Pesa Confirmation Code *</Label>
+              <Label className="text-sm font-semibold text-gray-700">M-Pesa Phone Number *</Label>
               <Input
                 className={inputCls}
-                value={mpesaCode}
-                onChange={e => { setMpesaCode(e.target.value.toUpperCase()); setError(""); }}
-                placeholder="e.g. QGH4XXXXXXX"
-                maxLength={12}
+                value={phone}
+                onChange={e => { setPhone(e.target.value); setError(""); }}
+                placeholder="e.g. 0712345678"
+                maxLength={13}
               />
               {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
             </div>
             <Button
               type="button"
-              onClick={handleConfirm}
-              disabled={confirming}
+              onClick={handleSendPush}
+              disabled={sending}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-bold h-11"
             >
-              {confirming ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying…</> : "Confirm Payment"}
+              {sending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending prompt…</> : "Send STK Push"}
             </Button>
+          </div>
+        ) : pushState === "pushed" ? (
+          <div className="bg-white rounded-lg p-4 border border-orange-100 flex items-center gap-3">
+            <Loader2 className="h-6 w-6 text-[#FF5722] flex-shrink-0 animate-spin" />
+            <div>
+              <p className="font-bold text-gray-900">Check your phone</p>
+              <p className="text-xs text-gray-500">Enter your M-Pesa PIN on the prompt sent to {phone}</p>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-lg p-4 border border-green-200 flex items-center gap-3">
             <CheckCircle2 className="h-6 w-6 text-green-500 flex-shrink-0" />
             <div>
               <p className="font-bold text-green-700">Payment Confirmed!</p>
-              <p className="text-xs text-gray-500">Code: <strong>{mpesaCode}</strong></p>
+              {mpesaReceiptNumber && <p className="text-xs text-gray-500">Receipt: <strong>{mpesaReceiptNumber}</strong></p>}
+            </div>
+          </div>
+        )}
+
+        {pushState === "failed" && (
+          <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+            <XCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-xs text-red-600 font-medium">{error || "Payment failed"}</p>
+              <button type="button" onClick={handleRetry} className="text-xs font-bold text-[#FF5722] underline mt-1">
+                Try again
+              </button>
             </div>
           </div>
         )}
@@ -121,7 +210,7 @@ export const StepPayment = ({ total, data, onNext, onBack }: Props) => {
         <Button variant="outline" onClick={onBack} className="px-6 h-11 border-gray-300 font-semibold">← Back</Button>
         <Button
           onClick={handleNext}
-          disabled={!confirmed}
+          disabled={pushState !== "confirmed"}
           className="bg-[#FF5722] hover:bg-[#e64a19] text-white font-bold px-8 h-11 disabled:opacity-50"
         >
           Next: Review Order →

@@ -26,7 +26,7 @@ const defaultShipping: ShippingInfo = {
 };
 const defaultDelivery: DeliveryInfo = { method: "standard", fee: 1000, isPickupOrder: false };
 const defaultVAT: VATInfo = { enabled: false, kraPin: "", taxName: "" };
-const defaultPayment: PaymentInfo = { method: "mpesa", mpesaCode: "", confirmed: false };
+const defaultPayment: PaymentInfo = { method: "mpesa", phone: "", checkoutRequestId: "", mpesaReceiptNumber: "", confirmed: false };
 
 function loadSession() {
   try {
@@ -211,8 +211,12 @@ const Checkout = () => {
           total: grandTotal,
           shipping_address: { ...shipping } as any,
           notes: delivery.isPickupOrder
-            ? `PICKUP ORDER — Branch: ${delivery.pickupBranchName || "N/A"}. Payment: M-Pesa ${payment.mpesaCode}. Customer notes: ${shipping.notes}`
-            : `Delivery: ${delivery.method} (${delivery.fee}). Payment: M-Pesa ${payment.mpesaCode}. Customer notes: ${shipping.notes}`,
+            ? `PICKUP ORDER — Branch: ${delivery.pickupBranchName || "N/A"}. Payment: M-Pesa ${payment.mpesaReceiptNumber}. Customer notes: ${shipping.notes}`
+            : `Delivery: ${delivery.method} (${delivery.fee}). Payment: M-Pesa ${payment.mpesaReceiptNumber}. Customer notes: ${shipping.notes}`,
+          payment_status: "paid",
+          mpesa_checkout_request_id: payment.checkoutRequestId,
+          mpesa_receipt_number: payment.mpesaReceiptNumber,
+          mpesa_phone: payment.phone,
           // VAT / eTIMS fields
           vat_enabled: vatInfo.enabled,
           vat_amount: vatAmount,
