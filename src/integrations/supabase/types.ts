@@ -135,6 +135,51 @@ export type Database = {
           },
         ]
       }
+      mpesa_transactions: {
+        Row: {
+          amount: number
+          checkout_request_id: string
+          created_at: string
+          id: string
+          merchant_request_id: string | null
+          mpesa_receipt_number: string | null
+          phone: string
+          result_code: string | null
+          result_desc: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          checkout_request_id: string
+          created_at?: string
+          id?: string
+          merchant_request_id?: string | null
+          mpesa_receipt_number?: string | null
+          phone: string
+          result_code?: string | null
+          result_desc?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          checkout_request_id?: string
+          created_at?: string
+          id?: string
+          merchant_request_id?: string | null
+          mpesa_receipt_number?: string | null
+          phone?: string
+          result_code?: string | null
+          result_desc?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -194,8 +239,12 @@ export type Database = {
           id: string
           is_pickup_order: boolean
           kra_pin: string | null
+          mpesa_checkout_request_id: string | null
+          mpesa_phone: string | null
+          mpesa_receipt_number: string | null
           notes: string | null
           order_number: string
+          payment_status: string | null
           pickup_branch_id: string | null
           pickup_branch_name: string | null
           receipt_status: string | null
@@ -217,8 +266,12 @@ export type Database = {
           id?: string
           is_pickup_order?: boolean
           kra_pin?: string | null
+          mpesa_checkout_request_id?: string | null
+          mpesa_phone?: string | null
+          mpesa_receipt_number?: string | null
           notes?: string | null
           order_number: string
+          payment_status?: string | null
           pickup_branch_id?: string | null
           pickup_branch_name?: string | null
           receipt_status?: string | null
@@ -240,8 +293,12 @@ export type Database = {
           id?: string
           is_pickup_order?: boolean
           kra_pin?: string | null
+          mpesa_checkout_request_id?: string | null
+          mpesa_phone?: string | null
+          mpesa_receipt_number?: string | null
           notes?: string | null
           order_number?: string
+          payment_status?: string | null
           pickup_branch_id?: string | null
           pickup_branch_name?: string | null
           receipt_status?: string | null
